@@ -22,6 +22,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .hidden{display:none!important}
 input,select,textarea{font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px 10px;width:100%;outline:none;transition:.15s}
 input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+input:disabled, select:disabled, textarea:disabled{background:#f3f4f6; color:#9ca3af; cursor:not-allowed}
 textarea{resize:vertical;min-height:72px}
 label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bottom:4px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:7px;border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:.15s}
@@ -227,7 +228,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqAo8B_xMAOdwWIqPytwq4H91FtI_s8cBK3LqoaH4uxd-VIXF6T_T2mWdJ3HH7NBV1/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzj8Wi9WjWyejbxLozxFnW6Bods9mSlVUWQaBHFfbwmb6u35abStFvHFQsBs8seUxNW/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -326,7 +327,7 @@ function loginAdmin(){
   const u=document.getElementById('admin-user').value.trim();
   const p=document.getElementById('admin-pass').value.trim();
   if(u==='HrARL'&&p==='HrAkij123@@'){
-    currentUser={eid:'ADMIN',name:'HR Admin'};
+    currentUser={eid:'ADMIN', name:'HR Admin', role:'admin'};
     isAdmin=true;
     loadApp('admin');
   } else {
@@ -429,8 +430,8 @@ function buildMTOSidebar(){
     {id:'s6',label:'Values Alignment',role:'lm'},
     {id:'s7',label:'Challenges & Support',role:'lm'},
     {id:'s8',label:'Next Month Plan',role:'lm'},
-    {id:'s9',label:'Supervisor Eval',role:'lm'},
-    {id:'s10',label:'Final Scoring',role:'lm'},
+    {id:'s9',label:'Supervisor Eval',role:'admin'},
+    {id:'s10',label:'Final Scoring',role:'admin'},
   ];
   let html='';
   html+=`<div class="sidebar-section">MTO Sections</div>`;
@@ -441,6 +442,12 @@ function buildMTOSidebar(){
   });
   html+=`<div class="sidebar-section" style="margin-top:8px">Manager Sections</div>`;
   sections.filter(s=>s.role==='lm').forEach(s=>{
+    html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
+      <div class="nav-dot ${formData[s.id]?'done':''}"></div>${s.label}
+    </div>`;
+  });
+  html+=`<div class="sidebar-section" style="margin-top:8px">HR / Admin Sections</div>`;
+  sections.filter(s=>s.role==='admin').forEach(s=>{
     html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
       <div class="nav-dot ${formData[s.id]?'done':''}"></div>${s.label}
     </div>`;
@@ -473,6 +480,20 @@ function showSection(id){
   if(fns[id])fns[id]();
 }
 
+// Access Control: Locks inputs if currentUser.role does not match the allowed role for the section
+function applyAccessControl(allowedRole, nextSection) {
+  if (currentUser.role !== allowedRole) {
+    const c = document.getElementById('main-content');
+    c.querySelectorAll('.section-card input, .section-card select, .section-card textarea').forEach(el => el.disabled = true);
+    c.querySelectorAll('.add-row-btn').forEach(el => el.style.display = 'none');
+    
+    const sb = document.querySelector('.submit-bar');
+    if(sb) {
+      sb.innerHTML = `<div style="width:100%; text-align:right;"><button class="btn btn-primary" onclick="showSection('${nextSection}')">Next Section →</button></div>`;
+    }
+  }
+}
+
 function gv(key,def=''){return formData[key]!==undefined?formData[key]:def;}
 function sv(key,val){formData[key]=val;}
 
@@ -494,6 +515,8 @@ function renderS1(){
     </div>
   </div>
   ${submitBar('s1',()=>({name:v('f-name'),dept:v('f-dept'),cross:v('f-cross'),sup:v('f-sup'),subdate:v('f-subdate'),batch:v('f-batch')}),'s2')}`;
+  
+  applyAccessControl('mto', 's2');
 }
 
 function renderS2(){
@@ -544,6 +567,8 @@ function renderS2(){
       bizimpact:v('bizimpact'),
       lsat:document.querySelector('input[name="lsat"]:checked')?.value||''
   }),'s3')}`;
+  
+  applyAccessControl('mto', 's3');
 }
 
 function renderS3(){
@@ -605,6 +630,8 @@ function renderS3(){
     <div class="form-group"><label>Key learning from cross-functional exposure</label><textarea id="cflearn">${gv('cflearn')}</textarea></div>
   </div>
   ${submitBar('s3',collectS3,'s4')}`;
+
+  applyAccessControl('mto', 's4');
 }
 
 function collectS3(){
@@ -672,6 +699,8 @@ function renderS4(){
     });
     return {vc_rows:rows,topimpact:v('topimpact'),vcrat:document.querySelector('input[name="vcrat"]:checked')?.value||'',vcjust:v('vcjust')};
   },'s5')}`;
+
+  applyAccessControl('mto', 's5');
 }
 
 function renderS5(){
@@ -707,6 +736,8 @@ function renderS5(){
     document.querySelectorAll('.kpi-desc').forEach((el,i)=>{rows.push({cat:cats[i],desc:el.value,target:document.querySelectorAll('.kpi-tgt')[i]?.value||'',actual:document.querySelectorAll('.kpi-act')[i]?.value||'',contrib:document.querySelectorAll('.kpi-con')[i]?.value||'',impact:document.querySelectorAll('.kpi-imp')[i]?.value||'',rating:document.querySelectorAll('.kpi-rat')[i]?.value||''});});
     return {kpi_rows:rows,kpi_avg:v('kpi-avg'),kpi_comment:v('kpi-comment')};
   },'s6')}`;
+
+  applyAccessControl('lm', 's6');
 }
 
 function calcKPIAvg() {
@@ -744,6 +775,8 @@ function renderS6(){
     ['Innovation','System_Driven','Sustainability','Customer_Centricity','Quality_Focus'].forEach(k=>{d['val_r_'+k]=document.getElementById('val-r-'+k)?.value||'';d['val_e_'+k]=document.getElementById('val-e-'+k)?.value||'';});
     return d;
   },'s7')}`;
+
+  applyAccessControl('lm', 's7');
 }
 
 function calcValAvg() {
@@ -782,6 +815,8 @@ function renderS7(){
     document.querySelectorAll('#ch-table tr:not(:first-child)').forEach(r=>{rows.push({desc:r.querySelector('.ch-desc')?.value||'',impact:r.querySelector('.ch-imp')?.value||'',support:r.querySelector('.ch-sup')?.value||'',type:r.querySelector('.ch-type')?.value||'',owner:r.querySelector('.ch-own')?.value||'',target:r.querySelector('.ch-tgt')?.value||''});});
     return {ch_rows:rows,ch_obs:v('ch-obs')};
   },'s8')}`;
+
+  applyAccessControl('lm', 's8');
 }
 
 function renderS8(){
@@ -828,6 +863,8 @@ function renderS8(){
     document.querySelectorAll('#kt-table tr:not(:first-child)').forEach(r=>kt.push({area:r.querySelector('.kt-ar')?.value||'',target:r.querySelector('.kt-tg')?.value||'',plan:r.querySelector('.kt-pl')?.value||'',metric:r.querySelector('.kt-me')?.value||''}));
     return {sd_rows:sd,pe_rows:pe,kt_rows:kt};
   },'s9')}`;
+
+  applyAccessControl('lm', 's9');
 }
 
 function renderS9(){
@@ -835,7 +872,7 @@ function renderS9(){
   const crits=['Learning Agility','Ownership & Accountability','Analytical Ability','Execution Discipline','Team Collaboration','Business Understanding'];
   const ids = ['agility','ownership','analytical','execution','collaboration','business'];
   c.innerHTML=`
-  <div class="page-header"><h2>Section 9: Supervisor Evaluation</h2><p>Filled by Line Manager</p></div>
+  <div class="page-header"><h2>Section 9: Supervisor Evaluation</h2><p>Filled by HR / HRBP based on observations</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">9</div><div><div class="section-title">Performance Criteria Ratings</div></div></div>
     <div class="table-responsive">
@@ -870,6 +907,8 @@ function renderS9(){
     eval_strengths:v('eval-strengths'), eval_readiness:v('eval-readiness'), 
     eval_recommendations:v('eval-recs'), eval_comments:v('eval-comments')
   }),'s10')}`;
+
+  applyAccessControl('admin', 's10');
 }
 
 function renderS10(){
@@ -920,24 +959,61 @@ function renderS10(){
   ${submitBar('s10',()=>({
     score_kpi:v('score-kpi'), score_values:v('score-values'), score_eval:v('score-eval'), score_total:v('score-total')
   }),'submit')}`;
+
+  applyAccessControl('admin', 'submit');
+}
+
+function handleSigUpload(input, roleId) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      // Compress the image so it fits securely in a Google Sheet cell
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const MAX_HEIGHT = 60; 
+      const scaleSize = MAX_HEIGHT / img.height;
+      canvas.height = MAX_HEIGHT;
+      canvas.width = img.width * scaleSize;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png', 0.8);
+      
+      document.getElementById(`sign-${roleId}-sig`).value = dataUrl;
+      const preview = document.getElementById(`sign-${roleId}-preview`);
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+    }
+    img.src = e.target.result;
+  }
+  reader.readAsDataURL(file);
+}
+
+function signatureHTML(roleId, savedSig, isDisabled) {
+  const dis = isDisabled ? 'disabled' : '';
+  let html = `<label>Digital Signature (Upload image or type name)</label>`;
+  if(!isDisabled) {
+    html += `<div style="display:flex; gap:10px; align-items:center; margin-bottom:8px">
+      <input type="file" accept="image/*" onchange="handleSigUpload(this, '${roleId}')" style="padding:0; border:none;">
+      <span style="font-size:11px;color:var(--text3)">Max 2MB. Transparent background preferred.</span>
+    </div>`;
+  }
+  html += `<input type="text" id="sign-${roleId}-sig" value="${savedSig}" placeholder="Or type your full name as signature..." ${dis}>`;
+  
+  if (savedSig && savedSig.startsWith('data:image')) {
+    html += `<img id="sign-${roleId}-preview" src="${savedSig}" style="max-height:40px; margin-top:8px; display:block; border-bottom:1px solid #000; padding-bottom:4px;">`;
+  } else {
+    html += `<img id="sign-${roleId}-preview" src="" style="max-height:40px; margin-top:8px; display:none; border-bottom:1px solid #000; padding-bottom:4px;">`;
+  }
+  return html;
 }
 
 function renderSubmit(){
   const c=document.getElementById('main-content');
   setActiveNav('submit');
   const sections=['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10'];
-  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking (LM)','s6':'Values Alignment (LM)','s7':'Challenges & Support (LM)','s8':'Next Month Plan (LM)','s9':'Supervisor Eval (LM)','s10':'Final Scoring (Auto)'};
-  
-  let lmSignOffHtml = '';
-  if (currentUser.role === 'lm' || tempRole === 'lm') {
-    lmSignOffHtml = `
-      <div class="sub-heading" style="margin-top:24px; color:var(--primary)">Section 11: Manager Sign-Off</div>
-      <div class="row2">
-        <div class="form-group"><label>Line Manager Name (Digital Signature)</label><input id="sign-lm-name" value="${gv('sign_lm_name', currentUser.name || '')}" placeholder="Type full name to sign"/></div>
-        <div class="form-group"><label>Date of Manager Assessment</label><input type="date" id="sign-lm-date" value="${gv('sign_lm_date', new Date().toISOString().slice(0,10))}"/></div>
-      </div>
-    `;
-  }
+  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking (LM)','s6':'Values Alignment (LM)','s7':'Challenges & Support (LM)','s8':'Next Month Plan (LM)','s9':'Supervisor Eval (HR/Admin)','s10':'Final Scoring (Auto)'};
 
   c.innerHTML=`
   <div class="page-header"><h2>Section 11: Final Sign-Off</h2><p>Review completion status and submit your monthly report</p></div>
@@ -950,17 +1026,41 @@ function renderSubmit(){
     </div>`).join('')}
   </div>
   <div class="section-card">
-    <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Sign-Off Confirmation</div></div></div>
-    <div class="info-box">By submitting, you confirm all information is accurate. This generates the final PDF report.</div>
+    <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Report Sign-Off Declarations</div></div></div>
+    <div class="info-box">Each party must sign their respective section below to lock in the final evaluation.</div>
+    
+    <!-- MTO Section -->
+    <div class="sub-heading" style="margin-top:24px; color:var(--primary)">MTO Sign-Off</div>
     <div class="row2">
-      <div class="form-group"><label>MTO Name (Digital Signature)</label><input id="sign-mto" value="${gv('name')}" readonly style="background:var(--bg)"/></div>
-      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${gv('subdate', new Date().toISOString().slice(0,10))}"/></div>
+      <div class="form-group"><label>MTO Name</label><input value="${gv('name')}" readonly style="background:var(--bg)"/></div>
+      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${gv('subdate', new Date().toISOString().slice(0,10))}" ${currentUser.role!=='mto'?'disabled':''}/></div>
+      <div class="full">
+        ${signatureHTML('mto', gv('sign_mto_sig'), currentUser.role!=='mto')}
+      </div>
     </div>
     
-    ${lmSignOffHtml}
+    <!-- LM Section -->
+    <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Line Manager Sign-Off</div>
+    <div class="row2">
+      <div class="form-group"><label>Line Manager Name</label><input id="sign-lm-name" value="${gv('sign_lm_name', (currentUser.role==='lm'?currentUser.name:''))}" ${currentUser.role!=='lm'?'disabled':''}/></div>
+      <div class="form-group"><label>Date of Assessment</label><input type="date" id="sign-lm-date" value="${gv('sign_lm_date')}" ${currentUser.role!=='lm'?'disabled':''}/></div>
+      <div class="full">
+        ${signatureHTML('lm', gv('sign_lm_sig'), currentUser.role!=='lm')}
+      </div>
+    </div>
 
-    <div style="margin-top:16px;display:flex;gap:10px">
-      <button class="btn btn-success" onclick="submitFinalReport()">✓ Generate PDF & Submit Assessment</button>
+    <!-- HR Section -->
+    <div class="sub-heading" style="margin-top:24px; color:var(--danger)">HR / HRBP Sign-Off</div>
+    <div class="row2">
+      <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin'?'disabled':''}/></div>
+      <div class="form-group"><label>Date of Evaluation Review</label><input type="date" id="sign-hr-date" value="${gv('sign_hr_date')}" ${currentUser.role!=='admin'?'disabled':''}/></div>
+      <div class="full">
+        ${signatureHTML('hr', gv('sign_hr_sig'), currentUser.role!=='admin')}
+      </div>
+    </div>
+
+    <div style="margin-top:24px;display:flex;gap:10px">
+      <button class="btn btn-success" onclick="submitFinalReport()">✓ Generate PDF & Submit Signatures</button>
       <button class="btn btn-secondary" onclick="saveDraft()">Save as Draft</button>
     </div>
   </div>`;
@@ -998,21 +1098,33 @@ async function saveAndNext(sectionId, collectFn, nextSection){
 
 async function saveDraft(){
   try{
+    // Make sure we collect latest sign-off data before saving full draft
+    formData['s11'] = {
+      sign_mto_sig: document.getElementById('sign-mto-sig')?.value || gv('sign_mto_sig'),
+      sign_lm_name: document.getElementById('sign-lm-name')?.value || gv('sign_lm_name'),
+      sign_lm_date: document.getElementById('sign-lm-date')?.value || gv('sign_lm_date'),
+      sign_lm_sig: document.getElementById('sign-lm-sig')?.value || gv('sign_lm_sig'),
+      sign_hr_name: document.getElementById('sign-hr-name')?.value || gv('sign_hr_name'),
+      sign_hr_date: document.getElementById('sign-hr-date')?.value || gv('sign_hr_date'),
+      sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
+    };
     await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'save_full',eid:getTargetEid(),phone:currentUser.phone,month:reportMonth,status:'draft',data:formData})});
     showToast('Draft saved to sheet!');
   }catch(e){showToast('Saved locally only');}
 }
 
 async function submitFinalReport(){
-  const date=document.getElementById('sign-date')?.value||'';
+  const date=document.getElementById('sign-date')?.value||gv('subdate');
   
-  // If LM is signing off, save their details into s11 block inside formData
-  if (document.getElementById('sign-lm-name')) {
-    formData['s11'] = {
-      sign_lm_name: document.getElementById('sign-lm-name').value,
-      sign_lm_date: document.getElementById('sign-lm-date').value
-    };
-  }
+  formData['s11'] = {
+    sign_mto_sig: document.getElementById('sign-mto-sig')?.value || gv('sign_mto_sig'),
+    sign_lm_name: document.getElementById('sign-lm-name')?.value || gv('sign_lm_name'),
+    sign_lm_date: document.getElementById('sign-lm-date')?.value || gv('sign_lm_date'),
+    sign_lm_sig: document.getElementById('sign-lm-sig')?.value || gv('sign_lm_sig'),
+    sign_hr_name: document.getElementById('sign-hr-name')?.value || gv('sign_hr_name'),
+    sign_hr_date: document.getElementById('sign-hr-date')?.value || gv('sign_hr_date'),
+    sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
+  };
 
   const btn = document.querySelector('.btn-success');
   const ogText = btn.innerHTML;
@@ -1066,6 +1178,19 @@ function updateAdminStats(){
   document.getElementById('stat-mtos').textContent=mtos;
 }
 
+async function viewReportAsAdmin(eid, month) {
+  activeMTOEid = eid;
+  reportMonth = month;
+  formData = {};
+  document.getElementById('topbar-subtitle').innerHTML = `<span style="cursor:pointer;color:var(--primary);text-decoration:underline" onclick="loadApp('admin')">← Back to Admin Dashboard</span> <span style="margin:0 8px;color:var(--border2)">|</span> Viewing MTO: ${eid}`;
+  
+  document.getElementById('main-content').innerHTML = `<div style="padding:40px; text-align:center; color:var(--text3);">Loading report data...</div>`;
+  
+  await loadSavedData(eid);
+  buildMTOSidebar();
+  showSection('s9'); // Jump HR straight to their evaluation section
+}
+
 function showAllReports(){
   const c=document.getElementById('main-content');
   c.innerHTML=`
@@ -1088,7 +1213,7 @@ function showAllReports(){
         <td><span class="badge-status badge-${r.status}">${r.status||'—'}</span></td>
         <td style="font-size:11px">${r.submit_date||'—'}</td>
         <td>${r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" class="view-btn" style="color:var(--accent); font-weight:600;">Download PDF</a>` : '<span style="color:var(--text3)">Not Generated</span>'}</td>
-        <td><span class="view-btn" onclick='viewReport(${JSON.stringify(r).replace(/'/g, "&#39;")})'>View Data</span></td>
+        <td><span class="view-btn" onclick="viewReportAsAdmin('${r.eid}', '${r.month}')">Open Report</span></td>
       </tr>`).join('')}
     </table>
   </div>`;
@@ -1104,27 +1229,6 @@ function filterTable(){
     const show=(!q||txt.includes(q))&&(!st||txt.includes(st))&&(!mo||txt.includes(mo));
     r.style.display=show?'':'none';
   });
-}
-
-function viewReport(r){
-  const c=document.getElementById('main-content');
-  c.innerHTML=`
-  <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">
-    <button class="btn btn-secondary btn-sm" onclick="showAllReports()">← Back</button>
-    <h2 style="font-size:18px;font-weight:600">Report: ${r.eid} — ${r.month}</h2>
-    <span class="badge-status badge-${r.status}">${r.status}</span>
-  </div>
-  <div class="section-card">
-    <div class="sub-heading">Basic Info</div>
-    <div class="row2">
-      <div><label>Name</label><p style="font-size:13px">${r.name||'—'}</p></div>
-      <div><label>Department</label><p style="font-size:13px">${r.dept||'—'}</p></div>
-      <div><label>Supervisor</label><p style="font-size:13px">${r.sup||'—'}</p></div>
-      <div><label>Batch</label><p style="font-size:13px">${r.batch||'—'}</p></div>
-    </div>
-    <div class="sub-heading">Raw Data</div>
-    <pre style="font-size:10px;background:var(--bg);padding:12px;border-radius:6px;overflow:auto;max-height:300px">${JSON.stringify(r,null,2)}</pre>
-  </div>`;
 }
 
 function showMTODirectory(){
