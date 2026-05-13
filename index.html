@@ -1022,7 +1022,9 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-document.getElementById('login-month').value=new Date().toISOString().slice(0,7);
+const today = new Date();
+today.setMonth(today.getMonth() - 1); // Automatically shifts back one month
+document.getElementById('login-month').value = today.toISOString().slice(0,7);
 </script>
 </body>
 </html>
