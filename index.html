@@ -160,6 +160,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 </head>
 <body>
 
+<!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
@@ -176,6 +177,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
       <div class="form-group"><label>Employee ID (Enroll)</label><input id="login-eid" type="text" placeholder="e.g. 568858"/></div>
       <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
       
+      <!-- Hidden OTP Section -->
       <div id="otp-section" class="hidden" style="background:var(--primary-light); padding:16px; border-radius:8px; border:1px solid var(--primary-mid); margin-bottom:14px;">
         <div id="otp-hint" style="font-size:12px; color:var(--primary); margin-bottom:10px; font-weight:500;"></div>
         <div class="form-group"><label>Enter 6-Digit OTP</label>
@@ -199,6 +201,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
   </div>
 </div>
 
+<!-- MAIN APP -->
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
@@ -224,7 +227,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby2Gg8B77r0dsQyTIqzIrRkIin2UeETPQ97BxvMagjxZLTQOFIp7_MrHGFO3FZXEVxW/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqAo8B_xMAOdwWIqPytwq4H91FtI_s8cBK3LqoaH4uxd-VIXF6T_T2mWdJ3HH7NBV1/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -426,6 +429,8 @@ function buildMTOSidebar(){
     {id:'s6',label:'Values Alignment',role:'lm'},
     {id:'s7',label:'Challenges & Support',role:'lm'},
     {id:'s8',label:'Next Month Plan',role:'lm'},
+    {id:'s9',label:'Supervisor Eval',role:'lm'},
+    {id:'s10',label:'Final Scoring',role:'lm'},
   ];
   let html='';
   html+=`<div class="sidebar-section">MTO Sections</div>`;
@@ -442,7 +447,7 @@ function buildMTOSidebar(){
   });
   html+=`<div class="sidebar-section" style="margin-top:8px">Finalize</div>`;
   html+=`<div class="nav-item" id="nav-submit" onclick="showSection('submit')">
-    <div class="nav-dot"></div>Submit Report
+    <div class="nav-dot"></div>Section 11: Sign-Off
   </div>`;
   document.getElementById('sidebar').innerHTML=html;
 }
@@ -464,7 +469,7 @@ function setActiveNav(id){
 
 function showSection(id){
   setActiveNav(id);
-  const fns={s1:renderS1,s2:renderS2,s3:renderS3,s4:renderS4,s5:renderS5,s6:renderS6,s7:renderS7,s8:renderS8,submit:renderSubmit};
+  const fns={s1:renderS1,s2:renderS2,s3:renderS3,s4:renderS4,s5:renderS5,s6:renderS6,s7:renderS7,s8:renderS8,s9:renderS9,s10:renderS10,submit:renderSubmit};
   if(fns[id])fns[id]();
 }
 
@@ -687,13 +692,13 @@ function renderS5(){
         <td><input class="kpi-act" data-i="${i}" value="${r.actual}" placeholder="Actual"/></td>
         <td><input class="kpi-con" data-i="${i}" value="${r.contrib}" placeholder="MTO's contribution"/></td>
         <td><input class="kpi-imp" data-i="${i}" value="${r.impact}" placeholder="%" style="width:55px"/></td>
-        <td><select class="kpi-rat" data-i="${i}"><option></option>${[1,2,3,4,5].map(n=>`<option ${r.rating==n?'selected':''}>${n}</option>`).join('')}</select></td>
+        <td><select class="kpi-rat" data-i="${i}" onchange="calcKPIAvg()"><option></option>${[1,2,3,4,5].map(n=>`<option ${r.rating==n?'selected':''}>${n}</option>`).join('')}</select></td>
       </tr>`).join('')}
     </table>
     </div>
     <div class="sub-heading">Section 5 Summary</div>
     <div class="row2">
-      <div class="form-group"><label>Overall KPI Contribution Score (avg of ratings)</label><input id="kpi-avg" value="${gv('kpi_avg')}" placeholder="e.g. 3.75 / 5"/></div>
+      <div class="form-group"><label>Overall KPI Contribution Score (avg of ratings)</label><input id="kpi-avg" value="${gv('kpi_avg')}" readonly style="background:var(--bg)"/></div>
     </div>
     <div class="form-group"><label>Manager Comments on KPI Performance</label><textarea id="kpi-comment">${gv('kpi_comment')}</textarea></div>
   </div>
@@ -702,6 +707,14 @@ function renderS5(){
     document.querySelectorAll('.kpi-desc').forEach((el,i)=>{rows.push({cat:cats[i],desc:el.value,target:document.querySelectorAll('.kpi-tgt')[i]?.value||'',actual:document.querySelectorAll('.kpi-act')[i]?.value||'',contrib:document.querySelectorAll('.kpi-con')[i]?.value||'',impact:document.querySelectorAll('.kpi-imp')[i]?.value||'',rating:document.querySelectorAll('.kpi-rat')[i]?.value||''});});
     return {kpi_rows:rows,kpi_avg:v('kpi-avg'),kpi_comment:v('kpi-comment')};
   },'s6')}`;
+}
+
+function calcKPIAvg() {
+  let sum = 0, count = 0;
+  document.querySelectorAll('.kpi-rat').forEach(el => {
+    if(el.value) { sum += parseFloat(el.value); count++; }
+  });
+  document.getElementById('kpi-avg').value = count ? (sum/count).toFixed(2) : '';
 }
 
 function renderS6(){
@@ -717,13 +730,13 @@ function renderS6(){
       <tr><th>Core Value</th><th>Rating (1-5)</th><th>Behavioral Example / Evidence</th></tr>
       ${vals.map(val=>`<tr>
         <td><strong style="font-size:12px">${val}</strong></td>
-        <td><select id="val-r-${val.replace(/ /g,'_')}" style="width:70px">${[1,2,3,4,5].map(n=>`<option ${gv('val_r_'+val.replace(/ /g,'_'))==n?'selected':''}>${n}</option>`).join('')}</select></td>
+        <td><select class="val-rat" id="val-r-${val.replace(/ /g,'_')}" style="width:70px" onchange="calcValAvg()"><option></option>${[1,2,3,4,5].map(n=>`<option ${gv('val_r_'+val.replace(/ /g,'_'))==n?'selected':''}>${n}</option>`).join('')}</select></td>
         <td><input id="val-e-${val.replace(/ /g,'_')}" value="${gv('val_e_'+val.replace(/ /g,'_'))}" placeholder="Specific behavioral example..."/></td>
       </tr>`).join('')}
     </table>
     </div>
     <div class="sub-heading">Section 6 Summary</div>
-    <div class="form-group"><label>Overall Values Alignment Score (average)</label><input id="val-avg" value="${gv('val_avg')}" placeholder="e.g. 4.0 / 5"/></div>
+    <div class="form-group"><label>Overall Values Alignment Score (average)</label><input id="val-avg" value="${gv('val_avg')}" readonly style="background:var(--bg)"/></div>
     <div class="form-group"><label>Manager Comments on Values Demonstration</label><textarea id="val-comment">${gv('val_comment')}</textarea></div>
   </div>
   ${submitBar('s6',()=>{
@@ -731,6 +744,14 @@ function renderS6(){
     ['Innovation','System_Driven','Sustainability','Customer_Centricity','Quality_Focus'].forEach(k=>{d['val_r_'+k]=document.getElementById('val-r-'+k)?.value||'';d['val_e_'+k]=document.getElementById('val-e-'+k)?.value||'';});
     return d;
   },'s7')}`;
+}
+
+function calcValAvg() {
+  let sum = 0, count = 0;
+  document.querySelectorAll('.val-rat').forEach(el => {
+    if(el.value) { sum += parseFloat(el.value); count++; }
+  });
+  document.getElementById('val-avg').value = count ? (sum/count).toFixed(2) : '';
 }
 
 function renderS7(){
@@ -769,7 +790,7 @@ function renderS8(){
   const peRows=gv('pe_rows',[{project:'',obj:'',role:'',learning:'',timeline:''}]);
   const ktRows=gv('kt_rows',[{area:'',target:'',plan:'',metric:''}]);
   c.innerHTML=`
-  <div class="page-header"><h2>Section 8: Next Month Development Plan</h2><p>Filled by Line Manager — Forward-looking development roadmap</p></div>
+  <div class="page-header"><h2>Section 8: Next Month Development Plan</h2><p>Filled by Line Manager</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">8</div><div><div class="section-title">A. Skill Development Focus</div></div></div>
     <div class="table-responsive">
@@ -806,16 +827,120 @@ function renderS8(){
     document.querySelectorAll('#pe-table tr:not(:first-child)').forEach(r=>pe.push({project:r.querySelector('.pe-pr')?.value||'',obj:r.querySelector('.pe-ob')?.value||'',role:r.querySelector('.pe-ro')?.value||'',learning:r.querySelector('.pe-le')?.value||'',timeline:r.querySelector('.pe-tl')?.value||''}));
     document.querySelectorAll('#kt-table tr:not(:first-child)').forEach(r=>kt.push({area:r.querySelector('.kt-ar')?.value||'',target:r.querySelector('.kt-tg')?.value||'',plan:r.querySelector('.kt-pl')?.value||'',metric:r.querySelector('.kt-me')?.value||''}));
     return {sd_rows:sd,pe_rows:pe,kt_rows:kt};
-  },'submit')}`;
+  },'s9')}`;
+}
+
+function renderS9(){
+  const c=document.getElementById('main-content');
+  const crits=['Learning Agility','Ownership & Accountability','Analytical Ability','Execution Discipline','Team Collaboration','Business Understanding'];
+  const ids = ['agility','ownership','analytical','execution','collaboration','business'];
+  c.innerHTML=`
+  <div class="page-header"><h2>Section 9: Supervisor Evaluation</h2><p>Filled by Line Manager</p></div>
+  <div class="section-card">
+    <div class="section-header"><div class="section-num sec-amber">9</div><div><div class="section-title">Performance Criteria Ratings</div></div></div>
+    <div class="table-responsive">
+    <table class="input-table">
+      <tr><th>Criteria</th><th>Rating (1-5)</th></tr>
+      ${crits.map((name, i)=>`<tr>
+        <td><strong>${name}</strong></td>
+        <td><select id="eval-${ids[i]}" style="width:100px"><option></option>${[1,2,3,4,5].map(n=>`<option ${gv('eval_'+ids[i])==n?'selected':''}>${n}</option>`).join('')}</select></td>
+      </tr>`).join('')}
+    </table>
+    </div>
+    
+    <div class="sub-heading">Overall Assessment</div>
+    <div class="form-group"><label>Key Strengths Observed:</label><textarea id="eval-strengths">${gv('eval_strengths')}</textarea></div>
+    
+    <div class="row2">
+      <div class="form-group"><label>Readiness Level</label>
+        <select id="eval-readiness">
+          <option value="">Select Level...</option>
+          <option ${gv('eval_readiness')=='Fit for Current Role'?'selected':''}>Fit for Current Role</option>
+          <option ${gv('eval_readiness')=='Ready for Next Role (1-2 yrs)'?'selected':''}>Ready for Next Role (1-2 yrs)</option>
+          <option ${gv('eval_readiness')=='Needs Improvement'?'selected':''}>Needs Improvement</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Supervisor Recommendations / Development Areas:</label><textarea id="eval-recs">${gv('eval_recommendations')}</textarea></div>
+    <div class="form-group"><label>Additional Comments:</label><textarea id="eval-comments">${gv('eval_comments')}</textarea></div>
+  </div>
+  ${submitBar('s9',()=>({
+    eval_agility:v('eval-agility'), eval_ownership:v('eval-ownership'), eval_analytical:v('eval-analytical'),
+    eval_execution:v('eval-execution'), eval_collaboration:v('eval-collaboration'), eval_business:v('eval-business'),
+    eval_strengths:v('eval-strengths'), eval_readiness:v('eval-readiness'), 
+    eval_recommendations:v('eval-recs'), eval_comments:v('eval-comments')
+  }),'s10')}`;
+}
+
+function renderS10(){
+  const c=document.getElementById('main-content');
+  
+  // Calculate average for Section 9
+  let s9Avg = 0;
+  const s9vals = [gv('eval_agility'), gv('eval_ownership'), gv('eval_analytical'), gv('eval_execution'), gv('eval_collaboration'), gv('eval_business')];
+  let validS9 = s9vals.filter(v => v !== '');
+  if (validS9.length > 0) {
+    s9Avg = validS9.reduce((a, b) => a + parseFloat(b), 0) / validS9.length;
+  }
+
+  // Parse averages from S5 and S6
+  let kpiAvg = parseFloat(gv('kpi_avg')) || 0;
+  let valAvg = parseFloat(gv('val_avg')) || 0;
+
+  // Standard Weights: KPI 50%, Values 30%, Eval 20%
+  let kpiScore = ((kpiAvg / 5) * 50).toFixed(2);
+  let valScore = ((valAvg / 5) * 30).toFixed(2);
+  let evalScore = ((s9Avg / 5) * 20).toFixed(2);
+  let totalScore = (parseFloat(kpiScore) + parseFloat(valScore) + parseFloat(evalScore)).toFixed(2);
+
+  // If no data yet, show 0 instead of NaN
+  if(isNaN(kpiScore)) kpiScore = 0;
+  if(isNaN(valScore)) valScore = 0;
+  if(isNaN(evalScore)) evalScore = 0;
+  if(isNaN(totalScore)) totalScore = 0;
+
+  c.innerHTML=`
+  <div class="page-header"><h2>Section 10: Final Scoring Model</h2><p>Auto-Calculated by System based on Sections 5, 6, and 9</p></div>
+  <div class="section-card">
+    <div class="section-header"><div class="section-num sec-amber">10</div><div><div class="section-title">Calculated Total Score</div></div></div>
+    <div class="table-responsive">
+    <table class="input-table">
+      <tr><th>Assessment Area</th><th>Weightage</th><th>Score Generated (out of weighted max)</th></tr>
+      <tr><td>KPI Contribution (Sec 5)</td><td>50%</td><td><input id="score-kpi" value="${kpiScore}" readonly style="background:var(--bg)"/></td></tr>
+      <tr><td>Values Alignment (Sec 6)</td><td>30%</td><td><input id="score-values" value="${valScore}" readonly style="background:var(--bg)"/></td></tr>
+      <tr><td>Supervisor Evaluation (Sec 9)</td><td>20%</td><td><input id="score-eval" value="${evalScore}" readonly style="background:var(--bg)"/></td></tr>
+      <tr style="background-color: var(--primary-light);">
+        <td colspan="2"><strong style="color:var(--primary)">Total Final Score</strong></td>
+        <td><input id="score-total" value="${totalScore}" readonly style="background:var(--primary-light); font-weight:bold; color:var(--primary)"/></td>
+      </tr>
+    </table>
+    </div>
+    <p style="font-size:11px; color:var(--text3); margin-top:8px">Scores are derived by mapping the 1-5 average ratings to their respective percentage weights.</p>
+  </div>
+  ${submitBar('s10',()=>({
+    score_kpi:v('score-kpi'), score_values:v('score-values'), score_eval:v('score-eval'), score_total:v('score-total')
+  }),'submit')}`;
 }
 
 function renderSubmit(){
   const c=document.getElementById('main-content');
   setActiveNav('submit');
-  const sections=['s1','s2','s3','s4','s5','s6','s7','s8'];
-  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking','s6':'Values Alignment','s7':'Challenges & Support','s8':'Next Month Plan'};
+  const sections=['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10'];
+  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking (LM)','s6':'Values Alignment (LM)','s7':'Challenges & Support (LM)','s8':'Next Month Plan (LM)','s9':'Supervisor Eval (LM)','s10':'Final Scoring (Auto)'};
+  
+  let lmSignOffHtml = '';
+  if (currentUser.role === 'lm' || tempRole === 'lm') {
+    lmSignOffHtml = `
+      <div class="sub-heading" style="margin-top:24px; color:var(--primary)">Section 11: Manager Sign-Off</div>
+      <div class="row2">
+        <div class="form-group"><label>Line Manager Name (Digital Signature)</label><input id="sign-lm-name" value="${gv('sign_lm_name', currentUser.name || '')}" placeholder="Type full name to sign"/></div>
+        <div class="form-group"><label>Date of Manager Assessment</label><input type="date" id="sign-lm-date" value="${gv('sign_lm_date', new Date().toISOString().slice(0,10))}"/></div>
+      </div>
+    `;
+  }
+
   c.innerHTML=`
-  <div class="page-header"><h2>Submit Report</h2><p>Review completion status and submit your monthly report</p></div>
+  <div class="page-header"><h2>Section 11: Final Sign-Off</h2><p>Review completion status and submit your monthly report</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Section Completion Status</div></div></div>
     ${sections.map(id=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
@@ -826,13 +951,16 @@ function renderSubmit(){
   </div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Sign-Off Confirmation</div></div></div>
-    <div class="info-box">By submitting, you confirm all information is accurate. This report will be sent to your Line Manager and HR/HRBP.</div>
+    <div class="info-box">By submitting, you confirm all information is accurate. This generates the final PDF report.</div>
     <div class="row2">
-      <div class="form-group"><label>MTO Name (confirmation)</label><input id="sign-mto" value="${gv('name')}" readonly style="background:var(--bg)"/></div>
-      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${new Date().toISOString().slice(0,10)}"/></div>
+      <div class="form-group"><label>MTO Name (Digital Signature)</label><input id="sign-mto" value="${gv('name')}" readonly style="background:var(--bg)"/></div>
+      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${gv('subdate', new Date().toISOString().slice(0,10))}"/></div>
     </div>
+    
+    ${lmSignOffHtml}
+
     <div style="margin-top:16px;display:flex;gap:10px">
-      <button class="btn btn-success" onclick="submitFinalReport()">✓ Submit Final Report</button>
+      <button class="btn btn-success" onclick="submitFinalReport()">✓ Generate PDF & Submit Assessment</button>
       <button class="btn btn-secondary" onclick="saveDraft()">Save as Draft</button>
     </div>
   </div>`;
@@ -877,6 +1005,15 @@ async function saveDraft(){
 
 async function submitFinalReport(){
   const date=document.getElementById('sign-date')?.value||'';
+  
+  // If LM is signing off, save their details into s11 block inside formData
+  if (document.getElementById('sign-lm-name')) {
+    formData['s11'] = {
+      sign_lm_name: document.getElementById('sign-lm-name').value,
+      sign_lm_date: document.getElementById('sign-lm-date').value
+    };
+  }
+
   const btn = document.querySelector('.btn-success');
   const ogText = btn.innerHTML;
   
@@ -1022,8 +1159,9 @@ function showToast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
+// Automatically shift back one month for reporting
 const today = new Date();
-today.setMonth(today.getMonth() - 1); // Automatically shifts back one month
+today.setMonth(today.getMonth() - 1); 
 document.getElementById('login-month').value = today.toISOString().slice(0,7);
 </script>
 </body>
