@@ -221,8 +221,8 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-// Replace with newest Web App URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby2tsJtI8YvFqT4oJv98_BaJUEYKz8Cu82ksoipPwQRL0Di0WJOFxNDH1lCWguFJj1E/exec';
+// Make sure this points to the newest deployment URL after you updated Code.gs
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx3zqo6FFiwgw6toE3bEDBoK_7XFwJFuFVty-AhHmUNW5jgZtr_GqWzUYgiLdhM79yW/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -255,7 +255,6 @@ async function initiateLogin() {
   const month = document.getElementById('login-month').value;
   if (!identifier || !month) { showError('Please enter your Email or Enroll ID and Report Month.'); return; }
 
-  // Use simple cache check if user remembers browser session
   if (localStorage.getItem('ufldp_session_' + identifier) === 'active') {
     const savedRole = localStorage.getItem('ufldp_role_' + identifier) || 'mto';
     const savedActualEid = localStorage.getItem('ufldp_actualEid_' + identifier) || identifier;
@@ -517,7 +516,6 @@ function showSection(id){
 }
 
 function applyAccessControl(allowedRole, nextSection) {
-  // MD has super access to everything
   if (currentUser.role === 'md') return; 
   
   if (currentUser.role !== allowedRole) {
@@ -1111,7 +1109,7 @@ function renderSubmit(){
     
     <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Mentor Sign-Off</div>
     <div class="row2">
-      <div class="form-group"><label>Mentor Name</label><input id="sign-mentor-name" value="${gv('sign_mentor_name', (currentUser.role==='mentor'?currentUser.eid:''))}" ${currentUser.role!=='mentor' && currentUser.role!=='md'?'disabled':''}/></div>
+      <div class="form-group"><label>Mentor Name</label><input id="sign-mentor-name" value="${gv('sign_mentor_name', (currentUser.role==='mentor'?currentUser.name:''))}" ${currentUser.role!=='mentor' && currentUser.role!=='md'?'disabled':''}/></div>
       <div class="form-group"><label>Date of Assessment</label><input type="date" id="sign-mentor-date" value="${gv('sign_mentor_date')}" ${currentUser.role!=='mentor' && currentUser.role!=='md'?'disabled':''}/></div>
       <div class="full">
         ${signatureHTML('mentor', gv('sign_mentor_sig'), currentUser.role!=='mentor' && currentUser.role!=='md')}
