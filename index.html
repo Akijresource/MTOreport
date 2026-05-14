@@ -157,7 +157,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 </head>
 <body>
 
-<!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
@@ -166,15 +165,14 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
       <p style="font-size:12px;color:#78716c;margin-top:4px">Monthly Development & Performance Report</p>
     </div>
     <div class="auth-tabs">
-      <div class="auth-tab active" onclick="switchAuthTab('mto')" id="tab-mto">MTO / Manager Login</div>
+      <div class="auth-tab active" onclick="switchAuthTab('mto')" id="tab-mto">MTO / Mentor Login</div>
       <div class="auth-tab" onclick="switchAuthTab('admin')" id="tab-admin">Admin / HR</div>
     </div>
     <div id="auth-error" class="error-msg hidden"></div>
     <div id="mto-login">
-      <div class="form-group"><label>Employee ID (Enroll)</label><input id="login-eid" type="text" placeholder="e.g. 568858"/></div>
+      <div class="form-group"><label>Email or Employee ID</label><input id="login-identifier" type="text" placeholder="e.g. 568858 or email@akijresource.com"/></div>
       <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
       
-      <!-- Hidden OTP Section -->
       <div id="otp-section" class="hidden" style="background:var(--primary-light); padding:16px; border-radius:8px; border:1px solid var(--primary-mid); margin-bottom:14px;">
         <div id="otp-hint" style="font-size:12px; color:var(--primary); margin-bottom:10px; font-weight:500;"></div>
         <div class="form-group"><label>Enter 6-Digit OTP</label>
@@ -198,7 +196,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
   </div>
 </div>
 
-<!-- MAIN APP -->
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
@@ -224,8 +221,8 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-// Make sure this points to the newest deployment URL after you updated Code.gs
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzfx8AMA_cIc5zBWAI5fSk9YKaA3M-9ucg9Yqu7F6OVkS3DTM7B4EJYg1xRgknx6lzz/exec';
+// Replace with newest Web App URL
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby2tsJtI8YvFqT4oJv98_BaJUEYKz8Cu82ksoipPwQRL0Di0WJOFxNDH1lCWguFJj1E/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -233,6 +230,7 @@ let reportMonth = '';
 let formData = {};
 let allReports = [];
 let tempRole = ''; 
+let activeLoginEid = null;
 let activeMTOEid = null;
 
 function getTargetEid() {
@@ -253,14 +251,16 @@ function showError(msg){
 }
 
 async function initiateLogin() {
-  const eid = document.getElementById('login-eid').value.trim();
+  const identifier = document.getElementById('login-identifier').value.trim();
   const month = document.getElementById('login-month').value;
-  if (!eid || !month) { showError('Please enter your Employee ID and Report Month.'); return; }
+  if (!identifier || !month) { showError('Please enter your Email or Enroll ID and Report Month.'); return; }
 
-  if (localStorage.getItem('ufldp_session_' + eid) === 'active') {
-    const savedRole = localStorage.getItem('ufldp_role_' + eid) || 'mto';
-    formData = {}; // Clear formData on fresh login
-    currentUser = { eid: eid, phone: 'verified_session', role: savedRole, month: month };
+  // Use simple cache check if user remembers browser session
+  if (localStorage.getItem('ufldp_session_' + identifier) === 'active') {
+    const savedRole = localStorage.getItem('ufldp_role_' + identifier) || 'mto';
+    const savedActualEid = localStorage.getItem('ufldp_actualEid_' + identifier) || identifier;
+    formData = {}; 
+    currentUser = { eid: savedActualEid, role: savedRole, month: month };
     reportMonth = month; isAdmin = false;
     loadApp(savedRole);
     return;
@@ -272,13 +272,14 @@ async function initiateLogin() {
 
   try {
     const res = await fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: 'request_otp', eid: eid })
+      method: 'POST', body: JSON.stringify({ action: 'request_otp', identifier: identifier })
     }).then(r => r.json());
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
     } else {
-      tempRole = res.role; // 'mto' or 'lm'
+      tempRole = res.role; 
+      activeLoginEid = res.actualEid;
       document.getElementById('otp-hint').textContent = `OTP sent to ${res.emailHint}`;
       document.getElementById('otp-section').classList.remove('hidden');
       btn.classList.add('hidden');
@@ -290,7 +291,7 @@ async function initiateLogin() {
 }
 
 async function verifyOTP() {
-  const eid = document.getElementById('login-eid').value.trim();
+  const identifier = document.getElementById('login-identifier').value.trim();
   const month = document.getElementById('login-month').value;
   const otp = document.getElementById('login-otp').value.trim();
   const remember = document.getElementById('remember-me').checked;
@@ -302,18 +303,19 @@ async function verifyOTP() {
 
   try {
     const res = await fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: eid, otp: otp })
+      method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
     }).then(r => r.json());
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
     } else {
       if (remember) {
-        localStorage.setItem('ufldp_session_' + eid, 'active');
-        localStorage.setItem('ufldp_role_' + eid, tempRole);
+        localStorage.setItem('ufldp_session_' + identifier, 'active');
+        localStorage.setItem('ufldp_role_' + identifier, tempRole);
+        localStorage.setItem('ufldp_actualEid_' + identifier, activeLoginEid);
       }
-      formData = {}; // Clear formData on fresh login
-      currentUser = { eid: eid, phone: 'verified_session', role: tempRole, month: month };
+      formData = {}; 
+      currentUser = { eid: activeLoginEid, role: tempRole, month: month };
       reportMonth = month; isAdmin = false;
       loadApp(tempRole);
     }
@@ -335,7 +337,7 @@ function loginAdmin(){
 }
 
 function logout(){
-  currentUser=null;isAdmin=false;formData={};allReports=[];tempRole='';activeMTOEid=null;
+  currentUser=null;isAdmin=false;formData={};allReports=[];tempRole='';activeMTOEid=null;activeLoginEid=null;
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('otp-section').classList.add('hidden');
@@ -357,12 +359,19 @@ function loadApp(mode){
     document.getElementById('topbar-subtitle').textContent='Admin Dashboard';
     document.getElementById('report-month-tag').textContent='All Reports';
     buildAdminSidebar(); showAdminDashboard();
-  } else if (mode === 'lm') {
-    document.getElementById('user-display').textContent=currentUser.eid;
-    document.getElementById('user-avatar').textContent='LM';
-    document.getElementById('topbar-subtitle').textContent='Manager Dashboard';
+  } else if (mode === 'md') {
+    document.getElementById('user-display').textContent='Managing Director';
+    document.getElementById('user-avatar').textContent='MD';
+    document.getElementById('topbar-subtitle').textContent='MD Dashboard';
     document.getElementById('report-month-tag').textContent=reportMonth;
-    document.getElementById('sidebar').innerHTML = `<div class="sidebar-section">Manager</div><div class="nav-item active"><div class="nav-dot done"></div>My Team</div>`;
+    document.getElementById('sidebar').innerHTML = `<div class="sidebar-section">Company</div><div class="nav-item active"><div class="nav-dot done"></div>All MTOs</div>`;
+    renderLMDashboard();
+  } else if (mode === 'mentor') {
+    document.getElementById('user-display').textContent=currentUser.eid;
+    document.getElementById('user-avatar').textContent='MN';
+    document.getElementById('topbar-subtitle').textContent='Mentor Dashboard';
+    document.getElementById('report-month-tag').textContent=reportMonth;
+    document.getElementById('sidebar').innerHTML = `<div class="sidebar-section">Mentor</div><div class="nav-item active"><div class="nav-dot done"></div>My Team</div>`;
     renderLMDashboard();
   } else {
     document.getElementById('user-display').textContent=currentUser.eid;
@@ -382,11 +391,11 @@ function renderLMDashboard() {
                  
   fetch(SCRIPT_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'get_team', lmEid: currentUser.eid, month: reportMonth })
+    body: JSON.stringify({ action: 'get_team', mentorEid: currentUser.eid, month: reportMonth })
   }).then(r => r.json()).then(d => {
      const team = d.team || [];
      if(team.length === 0) {
-       document.getElementById('team-list').innerHTML = `<p style="color:var(--text3);font-size:13px">No MTOs found under your supervision for this month.</p>`;
+       document.getElementById('team-list').innerHTML = `<p style="color:var(--text3);font-size:13px">No MTOs found for this month.</p>`;
        return;
      }
      let html = `<div class="table-responsive"><table class="data-table"><tr><th>MTO Name</th><th>Enroll ID</th><th>Status</th><th>Action</th></tr>`;
@@ -405,13 +414,12 @@ function renderLMDashboard() {
 async function openMTOReport(mtoEid) {
   activeMTOEid = mtoEid;
   formData = {}; 
-  document.getElementById('topbar-subtitle').innerHTML = `<span style="cursor:pointer;color:var(--primary);text-decoration:underline" onclick="loadApp('lm')">← Back to Team</span> <span style="margin:0 8px;color:var(--border2)">|</span> Viewing MTO: ${mtoEid}`;
+  document.getElementById('topbar-subtitle').innerHTML = `<span style="cursor:pointer;color:var(--primary);text-decoration:underline" onclick="loadApp('${currentUser.role}')">← Back to Team</span> <span style="margin:0 8px;color:var(--border2)">|</span> Viewing MTO: ${mtoEid}`;
   await loadSavedData(mtoEid);
   buildMTOSidebar();
   showSection('s1');
 }
 
-// Accurately loads back data structured for all roles
 async function loadSavedData(targetEid){
   try{
     const r=await fetch(`${SCRIPT_URL}?action=get&eid=${targetEid}&month=${reportMonth}`);
@@ -420,7 +428,6 @@ async function loadSavedData(targetEid){
   }catch(e){}
 }
 
-// Scans entire nested object to check if user has filled something
 function isSectionDone(id) {
   if(!formData[id]) return false;
   const sec = formData[id];
@@ -437,7 +444,6 @@ function isSectionDone(id) {
   return false;
 }
 
-// Deeply search parsed objects to fill HTML values
 function gv(key, def='') {
   if (formData[key] !== undefined && formData[key] !== '') return formData[key];
   for (let s in formData) {
@@ -456,11 +462,11 @@ function buildMTOSidebar(){
     {id:'s2',label:'Learning & Development',role:'mto'},
     {id:'s3',label:'Projects & Tasks',role:'mto'},
     {id:'s4',label:'Value Creation',role:'mto'},
-    {id:'s5',label:'KPI Tracking',role:'lm'},
-    {id:'s6',label:'Values Alignment',role:'lm'},
-    {id:'s7',label:'Challenges & Support',role:'lm'},
-    {id:'s8',label:'Next Month Plan',role:'lm'},
-    {id:'s9',label:'Supervisor Eval',role:'admin'},
+    {id:'s5',label:'KPI Tracking',role:'mentor'},
+    {id:'s6',label:'Values Alignment',role:'mentor'},
+    {id:'s7',label:'Challenges & Support',role:'mentor'},
+    {id:'s8',label:'Next Month Plan',role:'mentor'},
+    {id:'s9',label:'HR Evaluation',role:'admin'},
     {id:'s10',label:'Final Scoring',role:'admin'},
   ];
   let html='';
@@ -470,8 +476,8 @@ function buildMTOSidebar(){
       <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
   });
-  html+=`<div class="sidebar-section" style="margin-top:8px">Manager Sections</div>`;
-  sections.filter(s=>s.role==='lm').forEach(s=>{
+  html+=`<div class="sidebar-section" style="margin-top:8px">Mentor Sections</div>`;
+  sections.filter(s=>s.role==='mentor').forEach(s=>{
     html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
       <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
@@ -510,8 +516,10 @@ function showSection(id){
   if(fns[id])fns[id]();
 }
 
-// Access Control
 function applyAccessControl(allowedRole, nextSection) {
+  // MD has super access to everything
+  if (currentUser.role === 'md') return; 
+  
   if (currentUser.role !== allowedRole) {
     const c = document.getElementById('main-content');
     c.querySelectorAll('.section-card input, .section-card select, .section-card textarea').forEach(el => el.disabled = true);
@@ -524,9 +532,6 @@ function applyAccessControl(allowedRole, nextSection) {
   }
 }
 
-// ==========================================
-// CENTRALIZED DATA COLLECTION (Fix for broken buttons)
-// ==========================================
 function collectS1() { return {name:v('f-name'),dept:v('f-dept'),cross:v('f-cross'),sup:v('f-sup'),subdate:v('f-subdate'),batch:v('f-batch')}; }
 function collectS2() { return {
     l70desc:v('l70desc'), l70h:v('l70h'), l70a:v('l70a'),
@@ -580,7 +585,6 @@ function collectS10() {
     return {score_kpi:v('score-kpi'),score_values:v('score-values'),score_eval:v('score-eval'),score_total:v('score-total')};
 }
 
-// Safely creates buttons without Javascript string injection
 function submitBar(sectionId, nextSection){
   return `<div class="submit-bar">
     <div class="save-status" id="save-status-${sectionId}"></div>
@@ -650,7 +654,7 @@ function renderS1(){
       <div class="form-group"><label>Employee ID</label><input id="f-eid" value="${getTargetEid()}" readonly style="background:var(--bg)"/></div>
       <div class="form-group"><label>Department / SBU</label><input id="f-dept" value="${gv('dept')}" placeholder="e.g. Operations Planning / ARMCL"/></div>
       <div class="form-group"><label>Cross-functional Area (if any)</label><input id="f-cross" value="${gv('cross')}" placeholder="e.g. Digital Transformation"/></div>
-      <div class="form-group"><label>Supervisor Name</label><input id="f-sup" value="${gv('sup')}" placeholder="e.g. Sanjeed Ferhan"/></div>
+      <div class="form-group"><label>Mentor Name</label><input id="f-sup" value="${gv('sup')}" placeholder="e.g. Sanjeed Ferhan"/></div>
       <div class="form-group"><label>Reporting Month</label><input type="month" id="f-month" value="${reportMonth}" readonly style="background:var(--bg)"/></div>
       <div class="form-group"><label>Date of Submission</label><input type="date" id="f-subdate" value="${gv('subdate')}"/></div>
       <div class="form-group"><label>MTO Batch / Cohort</label><input id="f-batch" value="${gv('batch')}" placeholder="e.g. UFLDP Batch 2024-A"/></div>
@@ -715,7 +719,7 @@ function renderS3(){
     <div class="section-header"><div class="section-num sec-blue">3</div><div><div class="section-title">A. Strategic Projects</div></div></div>
     <div class="table-responsive">
     <table class="input-table" id="sp-table">
-      <tr><th>Project Name</th><th>Your Role</th><th>Key Activities</th><th>Status (%)</th><th>Supervisor?</th><th>Cross-fn?</th></tr>
+      <tr><th>Project Name</th><th>Your Role</th><th>Key Activities</th><th>Status (%)</th><th>Mentor?</th><th>Cross-fn?</th></tr>
       ${spRows.map((r,i)=>`<tr>
         <td><input class="sp-name" value="${r.name}" placeholder="Project name"/></td>
         <td><input class="sp-role" value="${r.role}" placeholder="Role"/></td>
@@ -804,8 +808,8 @@ function renderS5(){
   const c=document.getElementById('main-content');
   const kpiRows=gv('kpi_rows',[{cat:'Financial KPI',desc:'',target:'',actual:'',contrib:'',impact:'',rating:''},{cat:'Operational KPI',desc:'',target:'',actual:'',contrib:'',impact:'',rating:''},{cat:'Process / Quality KPI',desc:'',target:'',actual:'',contrib:'',impact:'',rating:''},{cat:'Team Support KPI',desc:'',target:'',actual:'',contrib:'',impact:'',rating:''}]);
   c.innerHTML=`
-  <div class="page-header"><h2>Section 5: KPI Contribution Tracking</h2><p>Filled by Line Manager / Supervisor</p></div>
-  <div class="warn-box">This section should be completed by the MTO's direct Line Manager after reviewing the MTO's work.</div>
+  <div class="page-header"><h2>Section 5: KPI Contribution Tracking</h2><p>Filled by Mentor</p></div>
+  <div class="warn-box">This section should be completed by the MTO's direct Mentor after reviewing the MTO's work.</div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">5</div><div><div class="section-title">KPI Performance Rating</div></div></div>
     <div class="table-responsive">
@@ -826,11 +830,11 @@ function renderS5(){
     <div class="row2">
       <div class="form-group"><label>Overall KPI Contribution Score (avg of ratings)</label><input id="kpi-avg" value="${gv('kpi_avg')}" readonly style="background:var(--bg)"/></div>
     </div>
-    <div class="form-group"><label>Manager Comments on KPI Performance</label><textarea id="kpi-comment">${gv('kpi_comment')}</textarea></div>
+    <div class="form-group"><label>Mentor Comments on KPI Performance</label><textarea id="kpi-comment">${gv('kpi_comment')}</textarea></div>
   </div>
   ${submitBar('s5', 's6')}`;
 
-  applyAccessControl('lm', 's6');
+  applyAccessControl('mentor', 's6');
 }
 
 function calcKPIAvg() {
@@ -845,7 +849,7 @@ function renderS6(){
   const c=document.getElementById('main-content');
   const vals=['Innovation','System Driven','Sustainability','Customer Centricity','Quality Focus'];
   c.innerHTML=`
-  <div class="page-header"><h2>Section 6: Values Alignment</h2><p>Filled by Line Manager — Core values behavioral evidence</p></div>
+  <div class="page-header"><h2>Section 6: Values Alignment</h2><p>Filled by Mentor — Core values behavioral evidence</p></div>
   <div class="warn-box">Rate MTO on each Akij Resource Core Value based on observed behavior this month.</div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">6</div><div><div class="section-title">Core Values Assessment</div></div></div>
@@ -861,11 +865,11 @@ function renderS6(){
     </div>
     <div class="sub-heading">Section 6 Summary</div>
     <div class="form-group"><label>Overall Values Alignment Score (average)</label><input id="val-avg" value="${gv('val_avg')}" readonly style="background:var(--bg)"/></div>
-    <div class="form-group"><label>Manager Comments on Values Demonstration</label><textarea id="val-comment">${gv('val_comment')}</textarea></div>
+    <div class="form-group"><label>Mentor Comments on Values Demonstration</label><textarea id="val-comment">${gv('val_comment')}</textarea></div>
   </div>
   ${submitBar('s6', 's7')}`;
 
-  applyAccessControl('lm', 's7');
+  applyAccessControl('mentor', 's7');
 }
 
 function calcValAvg() {
@@ -880,7 +884,7 @@ function renderS7(){
   const c=document.getElementById('main-content');
   const chRows=gv('ch_rows',[{desc:'',impact:'',support:'',type:'',owner:'',target:''}]);
   c.innerHTML=`
-  <div class="page-header"><h2>Section 7: Challenges & Support Required</h2><p>Filled by Line Manager</p></div>
+  <div class="page-header"><h2>Section 7: Challenges & Support Required</h2><p>Filled by Mentor</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">7</div><div><div class="section-title">Challenge Documentation</div></div></div>
     <div class="table-responsive">
@@ -897,11 +901,11 @@ function renderS7(){
     </table>
     </div>
     <div class="add-row-btn" onclick="addTableRow('ch-table','ch')">+ Add row</div>
-    <div class="form-group" style="margin-top:16px"><label>Additional Manager Observations</label><textarea id="ch-obs">${gv('ch_obs')}</textarea></div>
+    <div class="form-group" style="margin-top:16px"><label>Additional Mentor Observations</label><textarea id="ch-obs">${gv('ch_obs')}</textarea></div>
   </div>
   ${submitBar('s7', 's8')}`;
 
-  applyAccessControl('lm', 's8');
+  applyAccessControl('mentor', 's8');
 }
 
 function renderS8(){
@@ -910,7 +914,7 @@ function renderS8(){
   const peRows=gv('pe_rows',[{project:'',obj:'',role:'',learning:'',timeline:''}]);
   const ktRows=gv('kt_rows',[{area:'',target:'',plan:'',metric:''}]);
   c.innerHTML=`
-  <div class="page-header"><h2>Section 8: Next Month Development Plan</h2><p>Filled by Line Manager</p></div>
+  <div class="page-header"><h2>Section 8: Next Month Development Plan</h2><p>Filled by Mentor</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">8</div><div><div class="section-title">A. Skill Development Focus</div></div></div>
     <div class="table-responsive">
@@ -943,7 +947,7 @@ function renderS8(){
   </div>
   ${submitBar('s8', 's9')}`;
 
-  applyAccessControl('lm', 's9');
+  applyAccessControl('mentor', 's9');
 }
 
 function renderS9(){
@@ -951,7 +955,7 @@ function renderS9(){
   const crits=['Learning Agility','Ownership & Accountability','Analytical Ability','Execution Discipline','Team Collaboration','Business Understanding'];
   const ids = ['agility','ownership','analytical','execution','collaboration','business'];
   c.innerHTML=`
-  <div class="page-header"><h2>Section 9: Supervisor Evaluation</h2><p>Filled by HR / HRBP based on observations</p></div>
+  <div class="page-header"><h2>Section 9: HR Evaluation</h2><p>Filled by HR / HRBP based on observations</p></div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-amber">9</div><div><div class="section-title">Performance Criteria Ratings</div></div></div>
     <div class="table-responsive">
@@ -977,7 +981,7 @@ function renderS9(){
         </select>
       </div>
     </div>
-    <div class="form-group"><label>Supervisor Recommendations / Development Areas:</label><textarea id="eval-recs">${gv('eval_recommendations')}</textarea></div>
+    <div class="form-group"><label>HR Recommendations / Development Areas:</label><textarea id="eval-recs">${gv('eval_recommendations')}</textarea></div>
     <div class="form-group"><label>Additional Comments:</label><textarea id="eval-comments">${gv('eval_comments')}</textarea></div>
   </div>
   ${submitBar('s9', 's10')}`;
@@ -1017,7 +1021,7 @@ function renderS10(){
       <tr><th>Assessment Area</th><th>Weightage</th><th>Score Generated (out of weighted max)</th></tr>
       <tr><td>KPI Contribution (Sec 5)</td><td>50%</td><td><input id="score-kpi" value="${kpiScore}" readonly style="background:var(--bg)"/></td></tr>
       <tr><td>Values Alignment (Sec 6)</td><td>30%</td><td><input id="score-values" value="${valScore}" readonly style="background:var(--bg)"/></td></tr>
-      <tr><td>Supervisor Evaluation (Sec 9)</td><td>20%</td><td><input id="score-eval" value="${evalScore}" readonly style="background:var(--bg)"/></td></tr>
+      <tr><td>HR Evaluation (Sec 9)</td><td>20%</td><td><input id="score-eval" value="${evalScore}" readonly style="background:var(--bg)"/></td></tr>
       <tr style="background-color: var(--primary-light);">
         <td colspan="2"><strong style="color:var(--primary)">Total Final Score</strong></td>
         <td><input id="score-total" value="${totalScore}" readonly style="background:var(--primary-light); font-weight:bold; color:var(--primary)"/></td>
@@ -1080,7 +1084,7 @@ function renderSubmit(){
   const c=document.getElementById('main-content');
   setActiveNav('submit');
   const sections=['s1','s2','s3','s4','s5','s6','s7','s8','s9','s10'];
-  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking (LM)','s6':'Values Alignment (LM)','s7':'Challenges & Support (LM)','s8':'Next Month Plan (LM)','s9':'Supervisor Eval (HR/Admin)','s10':'Final Scoring (Auto)'};
+  const labels={'s1':'Basic Information','s2':'Learning & Development','s3':'Projects & Tasks','s4':'Value Creation','s5':'KPI Tracking (Mentor)','s6':'Values Alignment (Mentor)','s7':'Challenges & Support (Mentor)','s8':'Next Month Plan (Mentor)','s9':'HR Eval (HR/Admin)','s10':'Final Scoring (Auto)'};
 
   c.innerHTML=`
   <div class="page-header"><h2>Section 11: Final Sign-Off</h2><p>Review completion status and submit your monthly report</p></div>
@@ -1099,27 +1103,27 @@ function renderSubmit(){
     <div class="sub-heading" style="margin-top:24px; color:var(--primary)">MTO Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>MTO Name</label><input value="${gv('name')}" readonly style="background:var(--bg)"/></div>
-      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${gv('subdate', new Date().toISOString().slice(0,10))}" ${currentUser.role!=='mto'?'disabled':''}/></div>
+      <div class="form-group"><label>Date of Final Submission</label><input type="date" id="sign-date" value="${gv('subdate', new Date().toISOString().slice(0,10))}" ${currentUser.role!=='mto' && currentUser.role!=='md'?'disabled':''}/></div>
       <div class="full">
-        ${signatureHTML('mto', gv('sign_mto_sig'), currentUser.role!=='mto')}
+        ${signatureHTML('mto', gv('sign_mto_sig'), currentUser.role!=='mto' && currentUser.role!=='md')}
       </div>
     </div>
     
-    <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Line Manager Sign-Off</div>
+    <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Mentor Sign-Off</div>
     <div class="row2">
-      <div class="form-group"><label>Line Manager Name</label><input id="sign-lm-name" value="${gv('sign_lm_name', (currentUser.role==='lm'?currentUser.name:''))}" ${currentUser.role!=='lm'?'disabled':''}/></div>
-      <div class="form-group"><label>Date of Assessment</label><input type="date" id="sign-lm-date" value="${gv('sign_lm_date')}" ${currentUser.role!=='lm'?'disabled':''}/></div>
+      <div class="form-group"><label>Mentor Name</label><input id="sign-mentor-name" value="${gv('sign_mentor_name', (currentUser.role==='mentor'?currentUser.eid:''))}" ${currentUser.role!=='mentor' && currentUser.role!=='md'?'disabled':''}/></div>
+      <div class="form-group"><label>Date of Assessment</label><input type="date" id="sign-mentor-date" value="${gv('sign_mentor_date')}" ${currentUser.role!=='mentor' && currentUser.role!=='md'?'disabled':''}/></div>
       <div class="full">
-        ${signatureHTML('lm', gv('sign_lm_sig'), currentUser.role!=='lm')}
+        ${signatureHTML('mentor', gv('sign_mentor_sig'), currentUser.role!=='mentor' && currentUser.role!=='md')}
       </div>
     </div>
 
     <div class="sub-heading" style="margin-top:24px; color:var(--danger)">HR / HRBP Sign-Off</div>
     <div class="row2">
-      <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin'?'disabled':''}/></div>
-      <div class="form-group"><label>Date of Evaluation Review</label><input type="date" id="sign-hr-date" value="${gv('sign_hr_date')}" ${currentUser.role!=='admin'?'disabled':''}/></div>
+      <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin' && currentUser.role!=='md'?'disabled':''}/></div>
+      <div class="form-group"><label>Date of Evaluation Review</label><input type="date" id="sign-hr-date" value="${gv('sign_hr_date')}" ${currentUser.role!=='admin' && currentUser.role!=='md'?'disabled':''}/></div>
       <div class="full">
-        ${signatureHTML('hr', gv('sign_hr_sig'), currentUser.role!=='admin')}
+        ${signatureHTML('hr', gv('sign_hr_sig'), currentUser.role!=='admin' && currentUser.role!=='md')}
       </div>
     </div>
 
@@ -1134,9 +1138,9 @@ async function saveDraft(){
   try{
     formData['s11'] = {
       sign_mto_sig: document.getElementById('sign-mto-sig')?.value || gv('sign_mto_sig'),
-      sign_lm_name: document.getElementById('sign-lm-name')?.value || gv('sign_lm_name'),
-      sign_lm_date: document.getElementById('sign-lm-date')?.value || gv('sign_lm_date'),
-      sign_lm_sig: document.getElementById('sign-lm-sig')?.value || gv('sign_lm_sig'),
+      sign_mentor_name: document.getElementById('sign-mentor-name')?.value || gv('sign_mentor_name'),
+      sign_mentor_date: document.getElementById('sign-mentor-date')?.value || gv('sign_mentor_date'),
+      sign_mentor_sig: document.getElementById('sign-mentor-sig')?.value || gv('sign_mentor_sig'),
       sign_hr_name: document.getElementById('sign-hr-name')?.value || gv('sign_hr_name'),
       sign_hr_date: document.getElementById('sign-hr-date')?.value || gv('sign_hr_date'),
       sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
@@ -1151,9 +1155,9 @@ async function submitFinalReport(){
   
   formData['s11'] = {
     sign_mto_sig: document.getElementById('sign-mto-sig')?.value || gv('sign_mto_sig'),
-    sign_lm_name: document.getElementById('sign-lm-name')?.value || gv('sign_lm_name'),
-    sign_lm_date: document.getElementById('sign-lm-date')?.value || gv('sign_lm_date'),
-    sign_lm_sig: document.getElementById('sign-lm-sig')?.value || gv('sign_lm_sig'),
+    sign_mentor_name: document.getElementById('sign-mentor-name')?.value || gv('sign_mentor_name'),
+    sign_mentor_date: document.getElementById('sign-mentor-date')?.value || gv('sign_mentor_date'),
+    sign_mentor_sig: document.getElementById('sign-mentor-sig')?.value || gv('sign_mentor_sig'),
     sign_hr_name: document.getElementById('sign-hr-name')?.value || gv('sign_hr_name'),
     sign_hr_date: document.getElementById('sign-hr-date')?.value || gv('sign_hr_date'),
     sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
@@ -1176,7 +1180,6 @@ async function submitFinalReport(){
   }
 }
 
-// ADMIN VIEWS
 function showAdminDashboard(){
   if (document.getElementById('nav-admin-dash')) setActiveNav('admin-dash');
   document.getElementById('main-content').innerHTML=`
@@ -1226,7 +1229,7 @@ async function viewReportAsAdmin(eid, month) {
   
   await loadSavedData(eid);
   buildMTOSidebar();
-  showSection('s9'); // Jump HR straight to their evaluation section
+  showSection('s9'); 
 }
 
 function showAllReports(){
