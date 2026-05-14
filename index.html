@@ -99,10 +99,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 .rating-item input{width:16px;height:16px;accent-color:var(--primary)}
 .rating-item span{font-size:11px;color:var(--text3)}
 
-/* PROGRESS */
-.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:6px}
-.progress-fill{height:100%;background:var(--primary);border-radius:2px;transition:.3s}
-
 /* SUBMIT BAR */
 .submit-bar{background:#fff;border-top:1px solid var(--border);padding:12px 24px;position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:90;}
 .save-status{font-size:12px;color:var(--accent);display:flex;align-items:center;gap:5px}
@@ -229,7 +225,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 
 <script>
 // Make sure this points to the newest deployment URL after you updated Code.gs
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwEPOiUhKNSn63iAv3mBJ1fYmueCdEMhqXQjUe6W6T_8osGHsswHX5u-pgSywc8ZwEM/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzfx8AMA_cIc5zBWAI5fSk9YKaA3M-9ucg9Yqu7F6OVkS3DTM7B4EJYg1xRgknx6lzz/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -1100,7 +1096,6 @@ function renderSubmit(){
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Report Sign-Off Declarations</div></div></div>
     <div class="info-box">Each party must sign their respective section below to lock in the final evaluation.</div>
     
-    <!-- MTO Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--primary)">MTO Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>MTO Name</label><input value="${gv('name')}" readonly style="background:var(--bg)"/></div>
@@ -1110,7 +1105,6 @@ function renderSubmit(){
       </div>
     </div>
     
-    <!-- LM Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Line Manager Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>Line Manager Name</label><input id="sign-lm-name" value="${gv('sign_lm_name', (currentUser.role==='lm'?currentUser.name:''))}" ${currentUser.role!=='lm'?'disabled':''}/></div>
@@ -1120,7 +1114,6 @@ function renderSubmit(){
       </div>
     </div>
 
-    <!-- HR Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--danger)">HR / HRBP Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin'?'disabled':''}/></div>
@@ -1185,7 +1178,7 @@ async function submitFinalReport(){
 
 // ADMIN VIEWS
 function showAdminDashboard(){
-  setActiveNav('admin-dash');
+  if (document.getElementById('nav-admin-dash')) setActiveNav('admin-dash');
   document.getElementById('main-content').innerHTML=`
   <div class="admin-banner"><div><h2>HR Admin Dashboard</h2><p>UFLDP MTO Monthly Report System — AKIJ Resource Group</p></div><span class="chip" style="background:rgba(255,255,255,0.2);color:#fff">Live</span></div>
   <div class="stats-grid">
@@ -1204,9 +1197,12 @@ async function loadAdminData(){
     const d=await r.json();
     allReports=d.reports||[];
     updateAdminStats();
-    document.getElementById('admin-status-card').innerHTML = '<div style="font-size:13px;color:var(--accent);font-weight:500;">✓ Data loaded successfully</div>';
+    const statusCard = document.getElementById('admin-status-card');
+    if(statusCard) statusCard.innerHTML = '<div style="font-size:13px;color:var(--accent);font-weight:500;">✓ Data loaded successfully</div>';
   }catch(e){
-    document.getElementById('admin-status-card').innerHTML = '<div style="font-size:13px;color:var(--danger)">⚠ Could not connect to Google Sheet. Please check the URL.</div>';
+    console.error(e);
+    const statusCard = document.getElementById('admin-status-card');
+    if(statusCard) statusCard.innerHTML = '<div style="font-size:13px;color:var(--danger)">⚠ Could not connect to Google Sheet. Please check the URL and deploy status.</div>';
   }
 }
 
@@ -1234,7 +1230,7 @@ async function viewReportAsAdmin(eid, month) {
 }
 
 function showAllReports(){
-  setActiveNav('admin-all');
+  if (document.getElementById('nav-admin-all')) setActiveNav('admin-all');
   const c=document.getElementById('main-content');
   c.innerHTML=`
   <div class="page-header"><h2>All MTO Reports</h2><p>View and manage all submitted and draft reports</p></div>
@@ -1275,7 +1271,7 @@ function filterTable(){
 }
 
 function showMTODirectory(){
-  setActiveNav('admin-dir');
+  if (document.getElementById('nav-admin-dir')) setActiveNav('admin-dir');
   const c=document.getElementById('main-content');
   const mtos=[...new Set(allReports.map(r=>r.eid))];
   c.innerHTML=`
