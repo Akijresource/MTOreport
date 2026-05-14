@@ -229,7 +229,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 
 <script>
 // Make sure this points to the newest deployment URL after you updated Code.gs
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxFq0DRnsFokzTpREEiuAnJG50EorvdHU_EbhfY0UkLqcxBKCKZ2ENqidqSaR3wAQ88/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwEPOiUhKNSn63iAv3mBJ1fYmueCdEMhqXQjUe6W6T_8osGHsswHX5u-pgSywc8ZwEM/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -263,6 +263,7 @@ async function initiateLogin() {
 
   if (localStorage.getItem('ufldp_session_' + eid) === 'active') {
     const savedRole = localStorage.getItem('ufldp_role_' + eid) || 'mto';
+    formData = {}; // Clear formData on fresh login
     currentUser = { eid: eid, phone: 'verified_session', role: savedRole, month: month };
     reportMonth = month; isAdmin = false;
     loadApp(savedRole);
@@ -315,6 +316,7 @@ async function verifyOTP() {
         localStorage.setItem('ufldp_session_' + eid, 'active');
         localStorage.setItem('ufldp_role_' + eid, tempRole);
       }
+      formData = {}; // Clear formData on fresh login
       currentUser = { eid: eid, phone: 'verified_session', role: tempRole, month: month };
       reportMonth = month; isAdmin = false;
       loadApp(tempRole);
@@ -450,6 +452,8 @@ function gv(key, def='') {
   return def;
 }
 
+function sv(key,val){formData[key]=val;}
+
 function buildMTOSidebar(){
   const sections=[
     {id:'s1',label:'Basic Information',role:'mto'},
@@ -492,9 +496,9 @@ function buildMTOSidebar(){
 function buildAdminSidebar(){
   document.getElementById('sidebar').innerHTML=`
     <div class="sidebar-section">Admin</div>
-    <div class="nav-item active" onclick="showAdminDashboard()"><div class="nav-dot done"></div>Dashboard</div>
-    <div class="nav-item" onclick="showAllReports()"><div class="nav-dot"></div>All Reports</div>
-    <div class="nav-item" onclick="showMTODirectory()"><div class="nav-dot"></div>MTO Directory</div>
+    <div class="nav-item active" id="nav-admin-dash" onclick="showAdminDashboard()"><div class="nav-dot done"></div>Dashboard</div>
+    <div class="nav-item" id="nav-admin-all" onclick="showAllReports()"><div class="nav-dot"></div>All Reports</div>
+    <div class="nav-item" id="nav-admin-dir" onclick="showMTODirectory()"><div class="nav-dot"></div>MTO Directory</div>
   `;
 }
 
@@ -657,6 +661,7 @@ function renderS1(){
     </div>
   </div>
   ${submitBar('s1', 's2')}`;
+  
   applyAccessControl('mto', 's2');
 }
 
@@ -699,6 +704,7 @@ function renderS2(){
     </div>
   </div>
   ${submitBar('s2', 's3')}`;
+  
   applyAccessControl('mto', 's3');
 }
 
@@ -761,6 +767,7 @@ function renderS3(){
     <div class="form-group"><label>Key learning from cross-functional exposure</label><textarea id="cflearn">${gv('cflearn')}</textarea></div>
   </div>
   ${submitBar('s3', 's4')}`;
+
   applyAccessControl('mto', 's4');
 }
 
@@ -793,6 +800,7 @@ function renderS4(){
     <div class="form-group" style="margin-top:12px"><label>Justification for your rating</label><textarea id="vcjust">${gv('vcjust')}</textarea></div>
   </div>
   ${submitBar('s4', 's5')}`;
+
   applyAccessControl('mto', 's5');
 }
 
@@ -825,6 +833,7 @@ function renderS5(){
     <div class="form-group"><label>Manager Comments on KPI Performance</label><textarea id="kpi-comment">${gv('kpi_comment')}</textarea></div>
   </div>
   ${submitBar('s5', 's6')}`;
+
   applyAccessControl('lm', 's6');
 }
 
@@ -859,6 +868,7 @@ function renderS6(){
     <div class="form-group"><label>Manager Comments on Values Demonstration</label><textarea id="val-comment">${gv('val_comment')}</textarea></div>
   </div>
   ${submitBar('s6', 's7')}`;
+
   applyAccessControl('lm', 's7');
 }
 
@@ -894,6 +904,7 @@ function renderS7(){
     <div class="form-group" style="margin-top:16px"><label>Additional Manager Observations</label><textarea id="ch-obs">${gv('ch_obs')}</textarea></div>
   </div>
   ${submitBar('s7', 's8')}`;
+
   applyAccessControl('lm', 's8');
 }
 
@@ -935,6 +946,7 @@ function renderS8(){
     <div class="add-row-btn" onclick="addTableRow('kt-table','kt')">+ Add row</div>
   </div>
   ${submitBar('s8', 's9')}`;
+
   applyAccessControl('lm', 's9');
 }
 
@@ -973,6 +985,7 @@ function renderS9(){
     <div class="form-group"><label>Additional Comments:</label><textarea id="eval-comments">${gv('eval_comments')}</textarea></div>
   </div>
   ${submitBar('s9', 's10')}`;
+
   applyAccessControl('admin', 's10');
 }
 
@@ -1018,6 +1031,7 @@ function renderS10(){
     <p style="font-size:11px; color:var(--text3); margin-top:8px">Scores are derived by mapping the 1-5 average ratings to their respective percentage weights.</p>
   </div>
   ${submitBar('s10', 'submit')}`;
+
   applyAccessControl('admin', 'submit');
 }
 
@@ -1086,6 +1100,7 @@ function renderSubmit(){
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Report Sign-Off Declarations</div></div></div>
     <div class="info-box">Each party must sign their respective section below to lock in the final evaluation.</div>
     
+    <!-- MTO Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--primary)">MTO Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>MTO Name</label><input value="${gv('name')}" readonly style="background:var(--bg)"/></div>
@@ -1095,6 +1110,7 @@ function renderSubmit(){
       </div>
     </div>
     
+    <!-- LM Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Line Manager Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>Line Manager Name</label><input id="sign-lm-name" value="${gv('sign_lm_name', (currentUser.role==='lm'?currentUser.name:''))}" ${currentUser.role!=='lm'?'disabled':''}/></div>
@@ -1104,6 +1120,7 @@ function renderSubmit(){
       </div>
     </div>
 
+    <!-- HR Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--danger)">HR / HRBP Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin'?'disabled':''}/></div>
@@ -1168,6 +1185,7 @@ async function submitFinalReport(){
 
 // ADMIN VIEWS
 function showAdminDashboard(){
+  setActiveNav('admin-dash');
   document.getElementById('main-content').innerHTML=`
   <div class="admin-banner"><div><h2>HR Admin Dashboard</h2><p>UFLDP MTO Monthly Report System — AKIJ Resource Group</p></div><span class="chip" style="background:rgba(255,255,255,0.2);color:#fff">Live</span></div>
   <div class="stats-grid">
@@ -1176,7 +1194,7 @@ function showAdminDashboard(){
     <div class="stat-card"><div class="stat-num" id="stat-draft">—</div><div class="stat-label">Drafts</div></div>
     <div class="stat-card"><div class="stat-num" id="stat-mtos">—</div><div class="stat-label">Active MTOs</div></div>
   </div>
-  <div class="section-card"><div style="font-size:13px;color:var(--text2)">Loading reports from Google Sheet...</div></div>`;
+  <div class="section-card" id="admin-status-card"><div style="font-size:13px;color:var(--text2)">Loading reports from Google Sheet...</div></div>`;
   loadAdminData();
 }
 
@@ -1186,8 +1204,9 @@ async function loadAdminData(){
     const d=await r.json();
     allReports=d.reports||[];
     updateAdminStats();
+    document.getElementById('admin-status-card').innerHTML = '<div style="font-size:13px;color:var(--accent);font-weight:500;">✓ Data loaded successfully</div>';
   }catch(e){
-    document.getElementById('main-content').querySelector('.section-card div').textContent='⚠ Could not connect to Google Sheet. Configure SCRIPT_URL first.';
+    document.getElementById('admin-status-card').innerHTML = '<div style="font-size:13px;color:var(--danger)">⚠ Could not connect to Google Sheet. Please check the URL.</div>';
   }
 }
 
@@ -1215,6 +1234,7 @@ async function viewReportAsAdmin(eid, month) {
 }
 
 function showAllReports(){
+  setActiveNav('admin-all');
   const c=document.getElementById('main-content');
   c.innerHTML=`
   <div class="page-header"><h2>All MTO Reports</h2><p>View and manage all submitted and draft reports</p></div>
@@ -1255,6 +1275,7 @@ function filterTable(){
 }
 
 function showMTODirectory(){
+  setActiveNav('admin-dir');
   const c=document.getElementById('main-content');
   const mtos=[...new Set(allReports.map(r=>r.eid))];
   c.innerHTML=`
