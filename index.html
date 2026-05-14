@@ -161,7 +161,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 </head>
 <body>
 
-<!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
@@ -170,7 +169,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
       <p style="font-size:12px;color:#78716c;margin-top:4px">Monthly Development & Performance Report</p>
     </div>
     <div class="auth-tabs">
-      <div class="auth-tab active" onclick="switchAuthTab('mto')" id="tab-mto">MTO / Supervisor / Line Manager Login</div>
+      <div class="auth-tab active" onclick="switchAuthTab('mto')" id="tab-mto">MTO / Manager Login</div>
       <div class="auth-tab" onclick="switchAuthTab('admin')" id="tab-admin">Admin / HR</div>
     </div>
     <div id="auth-error" class="error-msg hidden"></div>
@@ -178,7 +177,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
       <div class="form-group"><label>Employee ID (Enroll)</label><input id="login-eid" type="text" placeholder="e.g. 568858"/></div>
       <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
       
-      <!-- Hidden OTP Section -->
       <div id="otp-section" class="hidden" style="background:var(--primary-light); padding:16px; border-radius:8px; border:1px solid var(--primary-mid); margin-bottom:14px;">
         <div id="otp-hint" style="font-size:12px; color:var(--primary); margin-bottom:10px; font-weight:500;"></div>
         <div class="form-group"><label>Enter 6-Digit OTP</label>
@@ -202,7 +200,6 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
   </div>
 </div>
 
-<!-- MAIN APP -->
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
@@ -228,7 +225,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzj8Wi9WjWyejbxLozxFnW6Bods9mSlVUWQaBHFfbwmb6u35abStFvHFQsBs8seUxNW/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwD3gWAqjR34J9jUdoPjk25-xJViG3S_7v7g26TYQx8E_jZ4ZPJHtBvJid63Zx73YVG/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -420,6 +417,36 @@ async function loadSavedData(targetEid){
   }catch(e){}
 }
 
+// NEW HELPER: Accurately checks if a section has user data
+function isSectionDone(id) {
+  if(!formData[id]) return false;
+  const sec = formData[id];
+  for (let k in sec) {
+    let v = sec[k];
+    if (Array.isArray(v)) {
+       if (v.length > 0 && Object.keys(v[0]).some(subK => v[0][subK])) return true;
+    } else if (v && v.toString().trim() !== '') {
+       return true;
+    }
+  }
+  return false;
+}
+
+// UPDATED GV: Deeply searches nested data structures from backend
+function gv(key, def='') {
+  if (formData[key] !== undefined && formData[key] !== '') return formData[key];
+  for (let s in formData) {
+    if (typeof formData[s] === 'object' && formData[s] !== null) {
+      if (formData[s][key] !== undefined && formData[s][key] !== '') {
+        return formData[s][key];
+      }
+    }
+  }
+  return def;
+}
+
+function sv(key,val){formData[key]=val;}
+
 function buildMTOSidebar(){
   const sections=[
     {id:'s1',label:'Basic Information',role:'mto'},
@@ -437,19 +464,19 @@ function buildMTOSidebar(){
   html+=`<div class="sidebar-section">MTO Sections</div>`;
   sections.filter(s=>s.role==='mto').forEach(s=>{
     html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
-      <div class="nav-dot ${formData[s.id]?'done':''}"></div>${s.label}
+      <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
   });
   html+=`<div class="sidebar-section" style="margin-top:8px">Manager Sections</div>`;
   sections.filter(s=>s.role==='lm').forEach(s=>{
     html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
-      <div class="nav-dot ${formData[s.id]?'done':''}"></div>${s.label}
+      <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
   });
   html+=`<div class="sidebar-section" style="margin-top:8px">HR / Admin Sections</div>`;
   sections.filter(s=>s.role==='admin').forEach(s=>{
     html+=`<div class="nav-item" id="nav-${s.id}" onclick="showSection('${s.id}')">
-      <div class="nav-dot ${formData[s.id]?'done':''}"></div>${s.label}
+      <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
   });
   html+=`<div class="sidebar-section" style="margin-top:8px">Finalize</div>`;
@@ -493,9 +520,6 @@ function applyAccessControl(allowedRole, nextSection) {
     }
   }
 }
-
-function gv(key,def=''){return formData[key]!==undefined?formData[key]:def;}
-function sv(key,val){formData[key]=val;}
 
 function renderS1(){
   const c=document.getElementById('main-content');
@@ -1020,16 +1044,15 @@ function renderSubmit(){
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Section Completion Status</div></div></div>
     ${sections.map(id=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="width:10px;height:10px;border-radius:50%;background:${formData[id]?'var(--accent)':'var(--border2)'}"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:${isSectionDone(id)?'var(--accent)':'var(--border2)'}"></div>
       <span style="flex:1;font-size:13px">${labels[id]}</span>
-      <span class="chip" style="background:${formData[id]?'var(--accent-light)':'var(--warn-light)'};color:${formData[id]?'var(--accent)':'var(--warn)'}">${formData[id]?'Completed':'Pending'}</span>
+      <span class="chip" style="background:${isSectionDone(id)?'var(--accent-light)':'var(--warn-light)'};color:${isSectionDone(id)?'var(--accent)':'var(--warn)'}">${isSectionDone(id)?'Completed':'Pending'}</span>
     </div>`).join('')}
   </div>
   <div class="section-card">
     <div class="section-header"><div class="section-num sec-green">✓</div><div><div class="section-title">Report Sign-Off Declarations</div></div></div>
     <div class="info-box">Each party must sign their respective section below to lock in the final evaluation.</div>
     
-    <!-- MTO Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--primary)">MTO Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>MTO Name</label><input value="${gv('name')}" readonly style="background:var(--bg)"/></div>
@@ -1039,7 +1062,6 @@ function renderSubmit(){
       </div>
     </div>
     
-    <!-- LM Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--warn)">Line Manager Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>Line Manager Name</label><input id="sign-lm-name" value="${gv('sign_lm_name', (currentUser.role==='lm'?currentUser.name:''))}" ${currentUser.role!=='lm'?'disabled':''}/></div>
@@ -1049,7 +1071,6 @@ function renderSubmit(){
       </div>
     </div>
 
-    <!-- HR Section -->
     <div class="sub-heading" style="margin-top:24px; color:var(--danger)">HR / HRBP Sign-Off</div>
     <div class="row2">
       <div class="form-group"><label>HR Representative Name</label><input id="sign-hr-name" value="${gv('sign_hr_name', (currentUser.role==='admin'?'HR Admin':''))}" ${currentUser.role!=='admin'?'disabled':''}/></div>
@@ -1075,8 +1096,6 @@ function submitBar(sectionId, collectFn, nextSection){
     </div>
   </div>`;
 }
-
-function v(id){return document.getElementById(id)?.value||'';}
 
 async function saveSection(sectionId, collectFn){
   const data=collectFn();
