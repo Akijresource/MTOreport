@@ -224,7 +224,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzF0xyqDSq3rwEBZ3QuESRkkr7CbqHhfJdMIsm4TPIlvVZU6ILP_RYsaA1ChtV8IeK1/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMU4oAZcbr77FuhfC7ds1pAVDw8jPKQRhgY2VjihdHEPEgTpjVzUjG7KiOOgVZR9NN/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -410,10 +410,22 @@ async function openMTOReport(mtoEid) {
 
 async function loadSavedData(targetEid){
   try{
-    const r=await fetch(`${SCRIPT_URL}?action=get&eid=${targetEid}&month=${reportMonth}`);
+    // Ensure eid and month are clean strings for the GET request
+    const cleanEid = targetEid.toString().trim();
+    const cleanMonth = reportMonth.toString().trim();
+    const r=await fetch(`${SCRIPT_URL}?action=get&eid=${encodeURIComponent(cleanEid)}&month=${encodeURIComponent(cleanMonth)}`);
     const d=await r.json();
-    if(d.data)formData=d.data;
-  }catch(e){}
+    if(d.data) {
+      formData=d.data;
+      console.log('Data loaded for', cleanEid, cleanMonth, Object.keys(formData));
+    } else {
+      formData={};
+      console.log('No existing data for', cleanEid, cleanMonth);
+    }
+  }catch(e){
+    console.error('Load error:', e);
+    formData={};
+  }
 }
 
 // Accurately checks if a section has user data
@@ -492,9 +504,9 @@ function buildMTOSidebar(){
 function buildAdminSidebar(){
   document.getElementById('sidebar').innerHTML=`
     <div class="sidebar-section">Admin</div>
-    <div class="nav-item active" onclick="showAdminDashboard()"><div class="nav-dot done"></div>Dashboard</div>
-    <div class="nav-item" onclick="showAllReports()"><div class="nav-dot"></div>All Reports</div>
-    <div class="nav-item" onclick="showMTODirectory()"><div class="nav-dot"></div>MTO Directory</div>
+    <div class="nav-item active" id="nav-admin-dash" onclick="document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));this.classList.add('active');showAdminDashboard()"><div class="nav-dot done"></div>Dashboard</div>
+    <div class="nav-item" id="nav-admin-reports" onclick="document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));this.classList.add('active');showAllReports()"><div class="nav-dot"></div>All Reports</div>
+    <div class="nav-item" id="nav-admin-dir" onclick="document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));this.classList.add('active');showMTODirectory()"><div class="nav-dot"></div>MTO Directory</div>
   `;
 }
 
@@ -1193,8 +1205,13 @@ async function loadAdminData(){
     const d=await r.json();
     allReports=d.reports||[];
     updateAdminStats();
+    // Update loading message to show success
+    const loadingEl = document.getElementById('main-content').querySelector('.section-card div');
+    if(loadingEl) loadingEl.textContent = allReports.length > 0 ? `✅ ${allReports.length} report(s) loaded successfully.` : '✅ Connected. No reports submitted yet.';
   }catch(e){
-    document.getElementById('main-content').querySelector('.section-card div').textContent='⚠ Could not connect to Google Sheet. Configure SCRIPT_URL first.';
+    console.error('Admin load error:', e);
+    const loadingEl = document.getElementById('main-content').querySelector('.section-card div');
+    if(loadingEl) loadingEl.textContent='⚠ Could not connect to Google Sheet. Check your SCRIPT_URL and deploy settings.';
   }
 }
 
