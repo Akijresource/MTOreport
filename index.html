@@ -271,9 +271,18 @@ async function initiateLogin() {
   btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
 
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'request_otp', identifier: identifier })
-    }).then(r => r.json());
+    });
+
+    // Guard against non-JSON response
+    const text = await response.text();
+    let res;
+    try { res = JSON.parse(text); } catch(parseErr) {
+      showError('Server returned an unexpected response. Please try again.');
+      btn.innerHTML = ogText; btn.disabled = false;
+      return;
+    }
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -286,7 +295,7 @@ async function initiateLogin() {
       document.getElementById('auth-error').classList.add('hidden');
     }
   } catch (err) {
-    showError('Failed to send OTP.'); btn.innerHTML = ogText; btn.disabled = false;
+    showError('Failed to send OTP. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -301,10 +310,27 @@ async function verifyOTP() {
   const btn = document.querySelector('#otp-section .btn-success');
   const ogText = btn.innerHTML; btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
+  // Safety timeout: if server doesn't respond within 30s, restore UI
+  const timeoutId = setTimeout(() => {
+    btn.innerHTML = ogText; btn.disabled = false;
+    showError('Server took too long to respond. Please try again.');
+  }, 30000);
+
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
-    }).then(r => r.json());
+    });
+
+    clearTimeout(timeoutId);
+
+    // Guard against non-JSON response (Apps Script cold-start redirect)
+    const text = await response.text();
+    let res;
+    try { res = JSON.parse(text); } catch(parseErr) {
+      showError('Server returned an unexpected response. Please try again.');
+      btn.innerHTML = ogText; btn.disabled = false;
+      return;
+    }
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -320,7 +346,9 @@ async function verifyOTP() {
       loadApp(tempRole);
     }
   } catch (err) {
-    showError('Verification failed.'); btn.innerHTML = ogText; btn.disabled = false;
+    clearTimeout(timeoutId);
+    showError('Verification failed. Check your connection and try again.');
+    btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -445,10 +473,20 @@ function isSectionDone(id) {
 }
 
 function gv(key, def='') {
-  if (formData[key] !== undefined && formData[key] !== '') return formData[key];
+  // Check top-level formData
+  if (formData[key] !== undefined && formData[key] !== '') {
+    // Treat empty arrays as "no data" so defaults kick in
+    if (Array.isArray(formData[key]) && formData[key].length === 0) return def;
+    return formData[key];
+  }
+  // Search inside section objects (e.g. formData.s5.kpi_rows)
   for (let s in formData) {
-    if (typeof formData[s] === 'object' && formData[s] !== null) {
-      if (formData[s][key] !== undefined && formData[s][key] !== '') return formData[s][key];
+    if (typeof formData[s] === 'object' && formData[s] !== null && !Array.isArray(formData[s])) {
+      const val = formData[s][key];
+      if (val !== undefined && val !== '') {
+        if (Array.isArray(val) && val.length === 0) return def;
+        return val;
+      }
     }
   }
   return def;
