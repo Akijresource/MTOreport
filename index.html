@@ -225,7 +225,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 <div class="toast" id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwD3gWAqjR34J9jUdoPjk25-xJViG3S_7v7g26TYQx8E_jZ4ZPJHtBvJid63Zx73YVG/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOLSjZBhnJ4aNneJ-Hgu5ZpNu9QvrwhAG1aF-bGegDO9tlSppd3Am2nD4OyP6ldi-_/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -417,7 +417,7 @@ async function loadSavedData(targetEid){
   }catch(e){}
 }
 
-// NEW HELPER: Accurately checks if a section has user data
+// Accurately checks if a section has user data
 function isSectionDone(id) {
   if(!formData[id]) return false;
   const sec = formData[id];
@@ -432,7 +432,7 @@ function isSectionDone(id) {
   return false;
 }
 
-// UPDATED GV: Deeply searches nested data structures from backend
+// Deeply searches nested data structures from backend
 function gv(key, def='') {
   if (formData[key] !== undefined && formData[key] !== '') return formData[key];
   for (let s in formData) {
@@ -521,6 +521,76 @@ function applyAccessControl(allowedRole, nextSection) {
   }
 }
 
+// ==========================================
+// CENTRALIZED DATA COLLECTION (Fix for buttons)
+// ==========================================
+function collectData(sectionId) {
+  switch(sectionId) {
+    case 's1':
+      return {name:v('f-name'),dept:v('f-dept'),cross:v('f-cross'),sup:v('f-sup'),subdate:v('f-subdate'),batch:v('f-batch')};
+    case 's2':
+      return {
+        l70desc:v('l70desc'), l70h:v('l70h'), l70a:v('l70a'),
+        l20desc:v('l20desc'), l20h:v('l20h'), l20a:v('l20a'),
+        l10desc:v('l10desc'), l10h:v('l10h'), l10a:v('l10a'),
+        sk1name:v('sk1name'), sk1how:v('sk1how'),
+        sk2name:v('sk2name'), sk2how:v('sk2how'),
+        sk3name:v('sk3name'), sk3how:v('sk3how'),
+        bizimpact:v('bizimpact'),
+        lsat:document.querySelector('input[name="lsat"]:checked')?.value||''
+      };
+    case 's3':
+      return collectS3();
+    case 's4':
+      const s4rows=[];
+      const types=['Cost Saving','Revenue Support','Process Improvement','Efficiency Gain','Risk Reduction'];
+      document.querySelectorAll('.vc-desc').forEach((el,i)=>{
+        s4rows.push({type:types[i]||'Other',desc:el.value,impact:document.querySelectorAll('.vc-imp')[i]?.value||'',evidence:document.querySelectorAll('.vc-ev')[i]?.value||'',verified:document.querySelectorAll('.vc-ver')[i]?.value||'N'});
+      });
+      return {vc_rows:s4rows,topimpact:v('topimpact'),vcrat:document.querySelector('input[name="vcrat"]:checked')?.value||'',vcjust:v('vcjust')};
+    case 's5':
+      const s5rows=[];const cats=['Financial KPI','Operational KPI','Process / Quality KPI','Team Support KPI'];
+      document.querySelectorAll('.kpi-desc').forEach((el,i)=>{s5rows.push({cat:cats[i],desc:el.value,target:document.querySelectorAll('.kpi-tgt')[i]?.value||'',actual:document.querySelectorAll('.kpi-act')[i]?.value||'',contrib:document.querySelectorAll('.kpi-con')[i]?.value||'',impact:document.querySelectorAll('.kpi-imp')[i]?.value||'',rating:document.querySelectorAll('.kpi-rat')[i]?.value||''});});
+      return {kpi_rows:s5rows,kpi_avg:v('kpi-avg'),kpi_comment:v('kpi-comment')};
+    case 's6':
+      const s6d={val_avg:v('val-avg'),val_comment:v('val-comment')};
+      ['Innovation','System_Driven','Sustainability','Customer_Centricity','Quality_Focus'].forEach(k=>{s6d['val_r_'+k]=document.getElementById('val-r-'+k)?.value||'';s6d['val_e_'+k]=document.getElementById('val-e-'+k)?.value||'';});
+      return s6d;
+    case 's7':
+      const s7rows=[];
+      document.querySelectorAll('#ch-table tr:not(:first-child)').forEach(r=>{s7rows.push({desc:r.querySelector('.ch-desc')?.value||'',impact:r.querySelector('.ch-imp')?.value||'',support:r.querySelector('.ch-sup')?.value||'',type:r.querySelector('.ch-type')?.value||'',owner:r.querySelector('.ch-own')?.value||'',target:r.querySelector('.ch-tgt')?.value||''});});
+      return {ch_rows:s7rows,ch_obs:v('ch-obs')};
+    case 's8':
+      const sd=[],pe=[],kt=[];
+      document.querySelectorAll('#sd-table tr:not(:first-child)').forEach(r=>sd.push({skill:r.querySelector('.sd-sk')?.value||'',action:r.querySelector('.sd-act')?.value||'',outcome:r.querySelector('.sd-out')?.value||'',timeline:r.querySelector('.sd-tl')?.value||'',resources:r.querySelector('.sd-res')?.value||''}));
+      document.querySelectorAll('#pe-table tr:not(:first-child)').forEach(r=>pe.push({project:r.querySelector('.pe-pr')?.value||'',obj:r.querySelector('.pe-ob')?.value||'',role:r.querySelector('.pe-ro')?.value||'',learning:r.querySelector('.pe-le')?.value||'',timeline:r.querySelector('.pe-tl')?.value||''}));
+      document.querySelectorAll('#kt-table tr:not(:first-child)').forEach(r=>kt.push({area:r.querySelector('.kt-ar')?.value||'',target:r.querySelector('.kt-tg')?.value||'',plan:r.querySelector('.kt-pl')?.value||'',metric:r.querySelector('.kt-me')?.value||''}));
+      return {sd_rows:sd,pe_rows:pe,kt_rows:kt};
+    case 's9':
+      return {
+        eval_agility:v('eval-agility'), eval_ownership:v('eval-ownership'), eval_analytical:v('eval-analytical'),
+        eval_execution:v('eval-execution'), eval_collaboration:v('eval-collaboration'), eval_business:v('eval-business'),
+        eval_strengths:v('eval-strengths'), eval_readiness:v('eval-readiness'), 
+        eval_recommendations:v('eval-recs'), eval_comments:v('eval-comments')
+      };
+    case 's10':
+      return {
+        score_kpi:v('score-kpi'), score_values:v('score-values'), score_eval:v('score-eval'), score_total:v('score-total')
+      };
+  }
+  return {};
+}
+
+function submitBar(sectionId, nextSection){
+  return `<div class="submit-bar">
+    <div class="save-status" id="save-status-${sectionId}"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="saveSection('${sectionId}')">Save Draft</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAndNext('${sectionId}','${nextSection}')">Save & Next →</button>
+    </div>
+  </div>`;
+}
+
 function renderS1(){
   const c=document.getElementById('main-content');
   c.innerHTML=`
@@ -538,7 +608,7 @@ function renderS1(){
       <div class="form-group"><label>MTO Batch / Cohort</label><input id="f-batch" value="${gv('batch')}" placeholder="e.g. UFLDP Batch 2024-A"/></div>
     </div>
   </div>
-  ${submitBar('s1',()=>({name:v('f-name'),dept:v('f-dept'),cross:v('f-cross'),sup:v('f-sup'),subdate:v('f-subdate'),batch:v('f-batch')}),'s2')}`;
+  ${submitBar('s1', 's2')}`;
   
   applyAccessControl('mto', 's2');
 }
@@ -581,16 +651,7 @@ function renderS2(){
       <span style="font-size:12px;color:var(--text3);margin-left:8px">1=Very Low · 5=Very High</span>
     </div>
   </div>
-  ${submitBar('s2',()=>({
-      l70desc:v('l70desc'), l70h:v('l70h'), l70a:v('l70a'),
-      l20desc:v('l20desc'), l20h:v('l20h'), l20a:v('l20a'),
-      l10desc:v('l10desc'), l10h:v('l10h'), l10a:v('l10a'),
-      sk1name:v('sk1name'), sk1how:v('sk1how'),
-      sk2name:v('sk2name'), sk2how:v('sk2how'),
-      sk3name:v('sk3name'), sk3how:v('sk3how'),
-      bizimpact:v('bizimpact'),
-      lsat:document.querySelector('input[name="lsat"]:checked')?.value||''
-  }),'s3')}`;
+  ${submitBar('s2', 's3')}`;
   
   applyAccessControl('mto', 's3');
 }
@@ -653,7 +714,7 @@ function renderS3(){
     <div class="form-group"><label>Departments/teams collaborated with this month</label><input id="cfteams" value="${gv('cfteams')}" placeholder="e.g. Finance, ABSL, Akij Cement..."/></div>
     <div class="form-group"><label>Key learning from cross-functional exposure</label><textarea id="cflearn">${gv('cflearn')}</textarea></div>
   </div>
-  ${submitBar('s3',collectS3,'s4')}`;
+  ${submitBar('s3', 's4')}`;
 
   applyAccessControl('mto', 's4');
 }
@@ -715,14 +776,7 @@ function renderS4(){
     </div>
     <div class="form-group" style="margin-top:12px"><label>Justification for your rating</label><textarea id="vcjust">${gv('vcjust')}</textarea></div>
   </div>
-  ${submitBar('s4',()=>{
-    const rows=[];
-    const types=['Cost Saving','Revenue Support','Process Improvement','Efficiency Gain','Risk Reduction'];
-    document.querySelectorAll('.vc-desc').forEach((el,i)=>{
-      rows.push({type:types[i]||'Other',desc:el.value,impact:document.querySelectorAll('.vc-imp')[i]?.value||'',evidence:document.querySelectorAll('.vc-ev')[i]?.value||'',verified:document.querySelectorAll('.vc-ver')[i]?.value||'N'});
-    });
-    return {vc_rows:rows,topimpact:v('topimpact'),vcrat:document.querySelector('input[name="vcrat"]:checked')?.value||'',vcjust:v('vcjust')};
-  },'s5')}`;
+  ${submitBar('s4', 's5')}`;
 
   applyAccessControl('mto', 's5');
 }
@@ -755,11 +809,7 @@ function renderS5(){
     </div>
     <div class="form-group"><label>Manager Comments on KPI Performance</label><textarea id="kpi-comment">${gv('kpi_comment')}</textarea></div>
   </div>
-  ${submitBar('s5',()=>{
-    const rows=[];const cats=['Financial KPI','Operational KPI','Process / Quality KPI','Team Support KPI'];
-    document.querySelectorAll('.kpi-desc').forEach((el,i)=>{rows.push({cat:cats[i],desc:el.value,target:document.querySelectorAll('.kpi-tgt')[i]?.value||'',actual:document.querySelectorAll('.kpi-act')[i]?.value||'',contrib:document.querySelectorAll('.kpi-con')[i]?.value||'',impact:document.querySelectorAll('.kpi-imp')[i]?.value||'',rating:document.querySelectorAll('.kpi-rat')[i]?.value||''});});
-    return {kpi_rows:rows,kpi_avg:v('kpi-avg'),kpi_comment:v('kpi-comment')};
-  },'s6')}`;
+  ${submitBar('s5', 's6')}`;
 
   applyAccessControl('lm', 's6');
 }
@@ -794,11 +844,7 @@ function renderS6(){
     <div class="form-group"><label>Overall Values Alignment Score (average)</label><input id="val-avg" value="${gv('val_avg')}" readonly style="background:var(--bg)"/></div>
     <div class="form-group"><label>Manager Comments on Values Demonstration</label><textarea id="val-comment">${gv('val_comment')}</textarea></div>
   </div>
-  ${submitBar('s6',()=>{
-    const d={val_avg:v('val-avg'),val_comment:v('val-comment')};
-    ['Innovation','System_Driven','Sustainability','Customer_Centricity','Quality_Focus'].forEach(k=>{d['val_r_'+k]=document.getElementById('val-r-'+k)?.value||'';d['val_e_'+k]=document.getElementById('val-e-'+k)?.value||'';});
-    return d;
-  },'s7')}`;
+  ${submitBar('s6', 's7')}`;
 
   applyAccessControl('lm', 's7');
 }
@@ -834,11 +880,7 @@ function renderS7(){
     <div class="add-row-btn" onclick="addTableRow('ch-table','ch')">+ Add row</div>
     <div class="form-group" style="margin-top:16px"><label>Additional Manager Observations</label><textarea id="ch-obs">${gv('ch_obs')}</textarea></div>
   </div>
-  ${submitBar('s7',()=>{
-    const rows=[];
-    document.querySelectorAll('#ch-table tr:not(:first-child)').forEach(r=>{rows.push({desc:r.querySelector('.ch-desc')?.value||'',impact:r.querySelector('.ch-imp')?.value||'',support:r.querySelector('.ch-sup')?.value||'',type:r.querySelector('.ch-type')?.value||'',owner:r.querySelector('.ch-own')?.value||'',target:r.querySelector('.ch-tgt')?.value||''});});
-    return {ch_rows:rows,ch_obs:v('ch-obs')};
-  },'s8')}`;
+  ${submitBar('s7', 's8')}`;
 
   applyAccessControl('lm', 's8');
 }
@@ -880,13 +922,7 @@ function renderS8(){
     </div>
     <div class="add-row-btn" onclick="addTableRow('kt-table','kt')">+ Add row</div>
   </div>
-  ${submitBar('s8',()=>{
-    const sd=[],pe=[],kt=[];
-    document.querySelectorAll('#sd-table tr:not(:first-child)').forEach(r=>sd.push({skill:r.querySelector('.sd-sk')?.value||'',action:r.querySelector('.sd-act')?.value||'',outcome:r.querySelector('.sd-out')?.value||'',timeline:r.querySelector('.sd-tl')?.value||'',resources:r.querySelector('.sd-res')?.value||''}));
-    document.querySelectorAll('#pe-table tr:not(:first-child)').forEach(r=>pe.push({project:r.querySelector('.pe-pr')?.value||'',obj:r.querySelector('.pe-ob')?.value||'',role:r.querySelector('.pe-ro')?.value||'',learning:r.querySelector('.pe-le')?.value||'',timeline:r.querySelector('.pe-tl')?.value||''}));
-    document.querySelectorAll('#kt-table tr:not(:first-child)').forEach(r=>kt.push({area:r.querySelector('.kt-ar')?.value||'',target:r.querySelector('.kt-tg')?.value||'',plan:r.querySelector('.kt-pl')?.value||'',metric:r.querySelector('.kt-me')?.value||''}));
-    return {sd_rows:sd,pe_rows:pe,kt_rows:kt};
-  },'s9')}`;
+  ${submitBar('s8', 's9')}`;
 
   applyAccessControl('lm', 's9');
 }
@@ -925,12 +961,7 @@ function renderS9(){
     <div class="form-group"><label>Supervisor Recommendations / Development Areas:</label><textarea id="eval-recs">${gv('eval_recommendations')}</textarea></div>
     <div class="form-group"><label>Additional Comments:</label><textarea id="eval-comments">${gv('eval_comments')}</textarea></div>
   </div>
-  ${submitBar('s9',()=>({
-    eval_agility:v('eval-agility'), eval_ownership:v('eval-ownership'), eval_analytical:v('eval-analytical'),
-    eval_execution:v('eval-execution'), eval_collaboration:v('eval-collaboration'), eval_business:v('eval-business'),
-    eval_strengths:v('eval-strengths'), eval_readiness:v('eval-readiness'), 
-    eval_recommendations:v('eval-recs'), eval_comments:v('eval-comments')
-  }),'s10')}`;
+  ${submitBar('s9', 's10')}`;
 
   applyAccessControl('admin', 's10');
 }
@@ -980,9 +1011,7 @@ function renderS10(){
     </div>
     <p style="font-size:11px; color:var(--text3); margin-top:8px">Scores are derived by mapping the 1-5 average ratings to their respective percentage weights.</p>
   </div>
-  ${submitBar('s10',()=>({
-    score_kpi:v('score-kpi'), score_values:v('score-values'), score_eval:v('score-eval'), score_total:v('score-total')
-  }),'submit')}`;
+  ${submitBar('s10', 'submit')}`;
 
   applyAccessControl('admin', 'submit');
 }
@@ -1087,21 +1116,11 @@ function renderSubmit(){
   </div>`;
 }
 
-function submitBar(sectionId, collectFn, nextSection){
-  return `<div class="submit-bar">
-    <div class="save-status" id="save-status-${sectionId}"></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm" onclick="saveSection('${sectionId}',${collectFn.toString()})">Save Draft</button>
-      <button class="btn btn-primary btn-sm" onclick="saveAndNext('${sectionId}',${collectFn.toString()},'${nextSection}')">Save & Next →</button>
-    </div>
-  </div>`;
-}
-
-async function saveSection(sectionId, collectFn){
-  const data=collectFn();
-  formData[sectionId]=data;
+async function saveSection(sectionId){
+  const data = collectData(sectionId);
+  formData[sectionId] = data;
   buildMTOSidebar();
-  const statusEl=document.getElementById('save-status-'+sectionId);
+  const statusEl = document.getElementById('save-status-'+sectionId);
   if(statusEl){statusEl.textContent='✓ Saved locally';statusEl.style.display='flex';}
   try{
     await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'save',eid:getTargetEid(),phone:currentUser.phone,month:reportMonth,section:sectionId,data})});
@@ -1110,8 +1129,8 @@ async function saveSection(sectionId, collectFn){
   }catch(e){if(statusEl)statusEl.textContent='⚠ Sheet sync failed (saved locally)';}
 }
 
-async function saveAndNext(sectionId, collectFn, nextSection){
-  await saveSection(sectionId, collectFn);
+async function saveAndNext(sectionId, nextSection){
+  await saveSection(sectionId);
   showSection(nextSection);
 }
 
