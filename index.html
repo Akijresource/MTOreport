@@ -255,19 +255,12 @@ async function initiateLogin() {
   const month = document.getElementById('login-month').value;
   if (!identifier || !month) { showError('Please enter your Email or Enroll ID and Report Month.'); return; }
 
-  if (localStorage.getItem('ufldp_session_' + identifier) === 'active') {
-    const savedRole = localStorage.getItem('ufldp_role_' + identifier) || 'mto';
-    const savedActualEid = localStorage.getItem('ufldp_actualEid_' + identifier) || identifier;
-    formData = {}; 
-    currentUser = { eid: savedActualEid, role: savedRole, month: month };
-    reportMonth = month; isAdmin = false;
-    loadApp(savedRole);
-    return;
-  }
+  // Check for saved session — but ALWAYS re-verify role from server
+  const hasSavedSession = localStorage.getItem('ufldp_session_' + identifier) === 'active';
 
   const btn = document.getElementById('btn-send-otp');
   const ogText = btn.innerHTML;
-  btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
+  btn.innerHTML = hasSavedSession ? 'Verifying session...' : 'Sending OTP...'; btn.disabled = true;
 
   try {
     const res = await fetch(SCRIPT_URL, {
@@ -276,16 +269,32 @@ async function initiateLogin() {
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
-    } else {
-      tempRole = res.role; 
-      activeLoginEid = res.actualEid;
-      document.getElementById('otp-hint').textContent = `OTP sent to ${res.emailHint}`;
-      document.getElementById('otp-section').classList.remove('hidden');
-      btn.classList.add('hidden');
-      document.getElementById('auth-error').classList.add('hidden');
+      return;
     }
+
+    // Always update role & eid from server (fixes stale cache)
+    tempRole = res.role;
+    activeLoginEid = res.actualEid;
+
+    // If saved session exists, skip OTP and login directly with FRESH role
+    if (hasSavedSession) {
+      // Update localStorage with correct role from server
+      localStorage.setItem('ufldp_role_' + identifier, res.role);
+      localStorage.setItem('ufldp_actualEid_' + identifier, res.actualEid);
+      formData = {};
+      currentUser = { eid: res.actualEid, role: res.role, month: month };
+      reportMonth = month; isAdmin = false;
+      loadApp(res.role);
+      return;
+    }
+
+    // No saved session — show OTP
+    document.getElementById('otp-hint').textContent = `OTP sent to ${res.emailHint}`;
+    document.getElementById('otp-section').classList.remove('hidden');
+    btn.classList.add('hidden');
+    document.getElementById('auth-error').classList.add('hidden');
   } catch (err) {
-    showError('Failed to send OTP.'); btn.innerHTML = ogText; btn.disabled = false;
+    showError('Failed to connect. Check your internet.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -336,6 +345,13 @@ function loginAdmin(){
 }
 
 function logout(){
+  // Clear stale localStorage for the current user's identifier
+  const loginId = document.getElementById('login-identifier')?.value?.trim();
+  if(loginId) {
+    localStorage.removeItem('ufldp_session_' + loginId);
+    localStorage.removeItem('ufldp_role_' + loginId);
+    localStorage.removeItem('ufldp_actualEid_' + loginId);
+  }
   currentUser=null;isAdmin=false;formData={};allReports=[];tempRole='';activeMTOEid=null;activeLoginEid=null;
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
