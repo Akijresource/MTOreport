@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UFLDP MTO Report System</title>
-<link rel="icon" type="image/jpeg" href="https://raw.githubusercontent.com/Akijresource/MTOreport/main/UFLDP.jpg">  
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -223,7 +222,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 
 <script>
 // IMPORTANT: Make sure this points to the newest deployment URL after you updated Code.gs
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyy-tbH4WHZeSsF9rSkyjM9WB0_FjVcbQAK2jHoLPCGnrbTIuxUlT8UU8CIfnMPa_g6/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsNiPxchx1zOw-OZODXMTqTL9DUvF5g8-ieSU8iTa8M0GFx-5ML1Xol3KmBcybZY1M/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -272,18 +271,9 @@ async function initiateLogin() {
   btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
 
   try {
-    const response = await fetch(SCRIPT_URL, {
+    const res = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'request_otp', identifier: identifier })
-    });
-
-    // Guard against non-JSON response
-    const text = await response.text();
-    let res;
-    try { res = JSON.parse(text); } catch(parseErr) {
-      showError('Server returned an unexpected response. Please try again.');
-      btn.innerHTML = ogText; btn.disabled = false;
-      return;
-    }
+    }).then(r => r.json());
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -296,7 +286,7 @@ async function initiateLogin() {
       document.getElementById('auth-error').classList.add('hidden');
     }
   } catch (err) {
-    showError('Failed to send OTP. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
+    showError('Failed to send OTP.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -311,27 +301,10 @@ async function verifyOTP() {
   const btn = document.querySelector('#otp-section .btn-success');
   const ogText = btn.innerHTML; btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
-  // Safety timeout: if server doesn't respond within 30s, restore UI
-  const timeoutId = setTimeout(() => {
-    btn.innerHTML = ogText; btn.disabled = false;
-    showError('Server took too long to respond. Please try again.');
-  }, 30000);
-
   try {
-    const response = await fetch(SCRIPT_URL, {
+    const res = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
-    });
-
-    clearTimeout(timeoutId);
-
-    // Guard against non-JSON response (Apps Script cold-start redirect)
-    const text = await response.text();
-    let res;
-    try { res = JSON.parse(text); } catch(parseErr) {
-      showError('Server returned an unexpected response. Please try again.');
-      btn.innerHTML = ogText; btn.disabled = false;
-      return;
-    }
+    }).then(r => r.json());
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -347,9 +320,7 @@ async function verifyOTP() {
       loadApp(tempRole);
     }
   } catch (err) {
-    clearTimeout(timeoutId);
-    showError('Verification failed. Check your connection and try again.');
-    btn.innerHTML = ogText; btn.disabled = false;
+    showError('Verification failed.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -474,20 +445,10 @@ function isSectionDone(id) {
 }
 
 function gv(key, def='') {
-  // Check top-level formData
-  if (formData[key] !== undefined && formData[key] !== '') {
-    // Treat empty arrays as "no data" so defaults kick in
-    if (Array.isArray(formData[key]) && formData[key].length === 0) return def;
-    return formData[key];
-  }
-  // Search inside section objects (e.g. formData.s5.kpi_rows)
+  if (formData[key] !== undefined && formData[key] !== '') return formData[key];
   for (let s in formData) {
-    if (typeof formData[s] === 'object' && formData[s] !== null && !Array.isArray(formData[s])) {
-      const val = formData[s][key];
-      if (val !== undefined && val !== '') {
-        if (Array.isArray(val) && val.length === 0) return def;
-        return val;
-      }
+    if (typeof formData[s] === 'object' && formData[s] !== null) {
+      if (formData[s][key] !== undefined && formData[s][key] !== '') return formData[s][key];
     }
   }
   return def;
@@ -527,6 +488,10 @@ function buildMTOSidebar(){
       <div class="nav-dot ${isSectionDone(s.id)?'done':''}"></div>${s.label}
     </div>`;
   });
+  html+=`<div class="sidebar-section" style="margin-top:8px">My Profile</div>`;
+  html+=`<div class="nav-item" id="nav-mto-skills" onclick="renderMTOSkillsView()">
+    <div class="nav-dot"></div>My Skills Profile
+  </div>`;
   html+=`<div class="sidebar-section" style="margin-top:8px">Finalize</div>`;
   html+=`<div class="nav-item" id="nav-submit" onclick="showSection('submit')">
     <div class="nav-dot"></div>Section 11: Sign-Off
@@ -538,6 +503,7 @@ function buildAdminSidebar(){
   document.getElementById('sidebar').innerHTML=`
     <div class="sidebar-section">Admin</div>
     <div class="nav-item active" id="nav-admin-dash" onclick="showAdminDashboard()"><div class="nav-dot done"></div>Dashboard</div>
+    <div class="nav-item" id="nav-admin-skills" onclick="showSkillsAnalytics()"><div class="nav-dot"></div>Skills Analytics</div>
     <div class="nav-item" id="nav-admin-all" onclick="showAllReports()"><div class="nav-dot"></div>All Reports</div>
     <div class="nav-item" id="nav-admin-dir" onclick="showMTODirectory()"><div class="nav-dot"></div>MTO Directory</div>
   `;
@@ -1165,9 +1131,26 @@ function renderSubmit(){
       </div>
     </div>
 
-    <div style="margin-top:24px;display:flex;gap:10px">
-      <button type="button" class="btn btn-success" onclick="submitFinalReport()">✓ Generate PDF & Submit Signatures</button>
-      <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save as Draft</button>
+    <div id="pdf-action-area" style="margin-top:24px">
+      ${(()=>{
+        const existingPdf = gv('pdf_url') || formData['pdf_url'] || '';
+        if(existingPdf){
+          return `<div style="background:var(--accent-light);border:1px solid #a7f3d0;border-radius:8px;padding:14px 16px;margin-bottom:10px">
+            <div style="font-size:13px;font-weight:500;color:var(--accent);margin-bottom:8px">✓ A PDF has been generated for this report.</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <a href="${existingPdf}" target="_blank" class="btn btn-success">⬇ Download PDF</a>
+              <button type="button" class="btn btn-secondary btn-generate-pdf" onclick="submitFinalReport()">↺ Re-generate PDF (after edits)</button>
+              <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save Draft</button>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:8px">Re-generating will replace the existing PDF with updated data.</div>
+          </div>`;
+        } else {
+          return `<div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="button" class="btn btn-success btn-generate-pdf" onclick="submitFinalReport()">✓ Generate PDF & Submit Signatures</button>
+            <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save as Draft</button>
+          </div>`;
+        }
+      })()}
     </div>
   </div>`;
 }
@@ -1201,20 +1184,43 @@ async function submitFinalReport(){
     sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
   };
 
-  const btn = document.querySelector('.btn-success');
+  const btn = document.querySelector('.btn-generate-pdf');
   const ogText = btn.innerHTML;
-  
-  btn.innerHTML = '⟳ Generating PDF & Submitting...';
-  btn.disabled = true;
+  btn.innerHTML = '⟳ Generating PDF...'; btn.disabled = true;
 
   try{
-    await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'submit',eid:getTargetEid(),month:reportMonth,status:'submitted',submitDate:date,data:formData})});
-    showToast('Report submitted & PDF successfully generated! 🎉');
-    setTimeout(()=>renderSubmit(), 1500);
+    const response = await fetch(SCRIPT_URL, {method:'POST', body:JSON.stringify({action:'submit',eid:getTargetEid(),month:reportMonth,status:'submitted',submitDate:date,data:formData})});
+    const text = await response.text();
+    let res = {};
+    try { res = JSON.parse(text); } catch(e) {}
+
+    const pdfUrl = res.pdf_url || '';
+    // Store in formData so it persists
+    if(pdfUrl) formData['pdf_url'] = pdfUrl;
+
+    // Update the action area
+    const actionArea = document.getElementById('pdf-action-area');
+    if(actionArea){
+      if(pdfUrl){
+        actionArea.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <a href="${pdfUrl}" target="_blank" class="btn btn-success">⬇ Download PDF</a>
+            <button type="button" class="btn btn-secondary btn-generate-pdf" onclick="submitFinalReport()">↺ Re-generate PDF (after edits)</button>
+            <span style="font-size:11px;color:var(--accent)">✓ Report submitted. PDF saved to Google Drive.</span>
+          </div>`;
+      } else {
+        actionArea.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button type="button" class="btn btn-success btn-generate-pdf" onclick="submitFinalReport()">✓ Generate PDF & Submit Signatures</button>
+            <button type="button" class="btn btn-secondary" onclick="saveDraft()">Save as Draft</button>
+            <span style="font-size:11px;color:var(--warn)">⚠ Submitted but PDF URL not returned. Check Drive folder.</span>
+          </div>`;
+      }
+    }
+    showToast(pdfUrl ? '✓ PDF generated! Click Download PDF.' : 'Report submitted (PDF URL unavailable).');
   }catch(e){
     showToast('Submission failed. Please try again.');
-    btn.innerHTML = ogText;
-    btn.disabled = false;
+    btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -1228,7 +1234,18 @@ function showAdminDashboard(){
     <div class="stat-card"><div class="stat-num" id="stat-draft">—</div><div class="stat-label">Drafts</div></div>
     <div class="stat-card"><div class="stat-num" id="stat-mtos">—</div><div class="stat-label">Active MTOs</div></div>
   </div>
-  <div class="section-card" id="admin-status-card"><div style="font-size:13px;color:var(--text2)">Loading reports from Google Sheet...</div></div>`;
+  <div class="section-card" id="admin-status-card"><div style="font-size:13px;color:var(--text2)">Loading reports from Google Sheet...</div></div>
+  <div class="section-card" id="admin-scores-card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600">MTO Overall Scores & KPI Summary</div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="showSkillsAnalytics()">View Full Skills Analytics →</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table" id="scores-table">
+        <tr><th>Name</th><th>Enroll</th><th>Month</th><th>Status</th><th>KPI Avg</th><th>Values Avg</th><th>Total Score</th><th>Top Skill</th><th>PDF</th></tr>
+      </table>
+    </div>
+  </div>`;
   loadAdminData();
 }
 
@@ -1240,6 +1257,33 @@ async function loadAdminData(){
     updateAdminStats();
     const statusCard = document.getElementById('admin-status-card');
     if(statusCard) statusCard.innerHTML = '<div style="font-size:13px;color:var(--accent);font-weight:500;">✓ Data loaded successfully</div>';
+    // Populate scores table
+    const scoresCard = document.getElementById('admin-scores-card');
+    const scoresTable = document.getElementById('scores-table');
+    if(scoresCard && scoresTable && allReports.length) {
+      scoresCard.style.display = 'block';
+      const rows = allReports.map(r => {
+        const s2 = r.s2 || {};
+        const topSkill = s2.sk1name || '—';
+        const kpiAvg = r.s5?.kpi_avg || '—';
+        const valAvg = r.s6?.val_avg || '—';
+        const score = r.s10?.score_total || '—';
+        const scoreColor = score !== '—' ? (score >= 80 ? 'var(--accent)' : score >= 60 ? 'var(--warn)' : 'var(--danger)') : 'var(--text3)';
+        const pdfLink = r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" style="color:var(--accent);font-weight:600;font-size:11px">⬇ PDF</a>` : '<span style="color:var(--text3);font-size:11px">—</span>';
+        return `<tr>
+          <td style="font-weight:500">${(r.s1||{}).name || r.name || '—'}</td>
+          <td><code style="font-size:11px">${r.eid||'—'}</code></td>
+          <td style="font-size:11px">${r.month||'—'}</td>
+          <td><span class="badge-status badge-${r.status||'draft'}">${r.status||'—'}</span></td>
+          <td style="font-weight:600;color:var(--primary)">${kpiAvg}</td>
+          <td style="font-weight:600;color:var(--warn)">${valAvg}</td>
+          <td style="font-weight:700;color:${scoreColor};font-size:15px">${score}</td>
+          <td><span style="background:var(--tag-bg);color:var(--tag-text);padding:2px 7px;border-radius:8px;font-size:11px">${topSkill}</span></td>
+          <td>${pdfLink}</td>
+        </tr>`;
+      }).join('');
+      scoresTable.innerHTML = `<tr><th>Name</th><th>Enroll</th><th>Month</th><th>Status</th><th>KPI Avg</th><th>Values Avg</th><th>Total Score</th><th>Top Skill</th><th>PDF</th></tr>` + rows;
+    }
   }catch(e){
     console.error(e);
     const statusCard = document.getElementById('admin-status-card');
@@ -1337,6 +1381,236 @@ function exportCSV(){
   const csv=[headers.join(','),...allReports.map(r=>headers.map(h=>`"${(r[h]||'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='mto_reports.csv';a.click();
   showToast('CSV exported!');
+}
+
+// ─── SKILLS ANALYTICS ENGINE ──────────────────────────────────────────────
+function computeSkillsData(reports) {
+  // All known KPI categories mapped to skill domains
+  const KPI_SKILL_MAP = {
+    'Financial KPI':        'Financial Analysis',
+    'Operational KPI':      'Operational Planning',
+    'Process / Quality KPI':'Process Improvement',
+    'Team Support KPI':     'Team Collaboration'
+  };
+  const VALUE_SKILL_MAP = {
+    'Innovation':           'Creative Thinking',
+    'System Driven':        'Systems Thinking',
+    'Sustainability':       'Sustainability Mindset',
+    'Customer Centricity':  'Customer Focus',
+    'Quality Focus':        'Quality Management'
+  };
+  const ALL_EXPECTED_SKILLS = [
+    'Data Analysis','Python / Coding','Power BI / Visualization',
+    'Google Apps Script','Production Planning','ERP Systems',
+    'Communication','Project Management','Lean / Six Sigma',
+    'Machine Learning','Financial Analysis','Operational Planning',
+    'Process Improvement','Team Collaboration','Creative Thinking',
+    'Systems Thinking','Sustainability Mindset','Customer Focus','Quality Management'
+  ];
+
+  const skillFreq = {}; // skill → count of MTOs who mentioned it
+  const mtoSkills = {}; // eid → {skills:[], kpiRatings:{}, valRatings:{}, score}
+
+  reports.forEach(r => {
+    const eid = r.eid || '';
+    if (!eid) return;
+    const skills = [];
+    const s2 = r.s2 || {};
+    // Collect from Section 2 (self-reported skills)
+    ['sk1name','sk2name','sk3name'].forEach(k => {
+      const sk = (s2[k] || '').trim();
+      if (sk) {
+        skills.push(sk);
+        skillFreq[sk] = (skillFreq[sk] || 0) + 1;
+      }
+    });
+    // Collect KPI-implied skills from Section 5 ratings
+    const kpiRatings = {};
+    const s5 = r.s5 || {};
+    const kpiRows = s5.kpi_rows || [];
+    kpiRows.forEach(row => {
+      const cat = row.cat || '';
+      const rating = parseFloat(row.rating) || 0;
+      const sk = KPI_SKILL_MAP[cat];
+      if (sk) { kpiRatings[sk] = rating; }
+    });
+    // Collect value-implied skills from Section 6 ratings
+    const valRatings = {};
+    const s6 = r.s6 || {};
+    Object.keys(VALUE_SKILL_MAP).forEach(val => {
+      const key = 'val_r_' + val.replace(/ /g,'_');
+      const rating = parseFloat(s6[key]) || 0;
+      const sk = VALUE_SKILL_MAP[val];
+      if (rating > 0) { valRatings[sk] = rating; }
+    });
+    mtoSkills[eid] = {
+      name: (r.s1 || {}).name || eid,
+      dept: (r.s1 || {}).dept || '—',
+      skills, kpiRatings, valRatings,
+      score: parseFloat(r.s10?.score_total || r.score_total || 0),
+      kpiAvg: parseFloat(r.s5?.kpi_avg || 0),
+      valAvg: parseFloat(r.s6?.val_avg || 0),
+      month: r.month || '—', status: r.status || '—'
+    };
+  });
+  return { skillFreq, mtoSkills, ALL_EXPECTED_SKILLS };
+}
+
+function renderSkillsCard(mto, allExpected) {
+  const allSkills = new Set([
+    ...mto.skills,
+    ...Object.keys(mto.kpiRatings).filter(k => mto.kpiRatings[k] >= 3),
+    ...Object.keys(mto.valRatings).filter(k => mto.valRatings[k] >= 3)
+  ]);
+  const known = [...allSkills];
+  const lacking = allExpected.filter(s => !allSkills.has(s));
+  const suggestions = lacking.slice(0, 4).map(s => {
+    const devMap = {
+      'Data Analysis': 'Take a free Google Data Analytics course on Coursera',
+      'Python / Coding': 'Complete Python for Everybody on edX or YouTube',
+      'Power BI / Visualization': 'Microsoft Power BI free learning path on Microsoft Learn',
+      'Google Apps Script': 'Build automation scripts — start with official Google codelabs',
+      'Production Planning': 'Study MRP/ERP concepts; apply in your SBU planning role',
+      'ERP Systems': 'Request access to AKUIBOS and explore module documentation',
+      'Communication': 'Practice structured email writing and verbal reporting',
+      'Project Management': 'Study PMBOK basics or take a free PM course on Coursera',
+      'Lean / Six Sigma': 'Complete a free Lean/Six Sigma Yellow Belt online certification',
+      'Machine Learning': 'Start with fast.ai or Andrew Ng\'s ML course on Coursera',
+      'Financial Analysis': 'Request finance rotation; study cost accounting basics',
+      'Operational Planning': 'Study capacity planning & scheduling in your SBU',
+      'Process Improvement': 'Apply DMAIC framework to a current operational problem',
+      'Team Collaboration': 'Volunteer to lead cross-functional working groups',
+      'Creative Thinking': 'Practice design thinking; join innovation challenges',
+      'Systems Thinking': 'Study causal loop diagrams; apply to SBU processes',
+      'Sustainability Mindset': 'Study Akij Resource sustainability reports and ESG principles',
+      'Customer Focus': 'Shadow client-facing teams; map the customer journey',
+      'Quality Management': 'Study ISO 9001 basics; apply quality checklists in daily work'
+    };
+    return { skill: s, action: devMap[s] || 'Seek targeted training and project exposure' };
+  });
+  return { known, lacking: lacking.slice(0, 6), suggestions };
+}
+
+function showSkillsAnalytics() {
+  if (document.getElementById('nav-admin-skills')) setActiveNav('admin-skills');
+  const c = document.getElementById('main-content');
+  if (!allReports.length) {
+    c.innerHTML = `<div class="page-header"><h2>Skills Analytics</h2></div><div class="section-card"><p style="color:var(--text3)">No report data loaded. Go to Dashboard first.</p></div>`;
+    return;
+  }
+  const { skillFreq, mtoSkills, ALL_EXPECTED_SKILLS } = computeSkillsData(allReports);
+
+  // Top skills across cohort
+  const topSkills = Object.entries(skillFreq).sort((a,b) => b[1]-a[1]).slice(0, 8);
+
+  // Build per-MTO cards
+  const mtoCards = Object.values(mtoSkills).map(mto => {
+    const { known, lacking, suggestions } = renderSkillsCard(mto, ALL_EXPECTED_SKILLS);
+    const scoreColor = mto.score >= 80 ? 'var(--accent)' : mto.score >= 60 ? 'var(--warn)' : 'var(--danger)';
+    return `<div class="section-card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600">${mto.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${mto.dept} · ${mto.month} · <span class="badge-status badge-${mto.status}">${mto.status}</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:${scoreColor}">${mto.score||'—'}</div><div style="font-size:10px;color:var(--text3)">Total Score</div></div>
+          <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:var(--primary)">${mto.kpiAvg||'—'}</div><div style="font-size:10px;color:var(--text3)">KPI Avg</div></div>
+          <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:var(--warn)">${mto.valAvg||'—'}</div><div style="font-size:10px;color:var(--text3)">Values Avg</div></div>
+        </div>
+      </div>
+      <div class="row2" style="gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Skills Demonstrated (${known.length})</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${known.length ? known.map(s=>`<span style="background:var(--accent-light);color:var(--accent);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500">${s}</span>`).join('') : '<span style="color:var(--text3);font-size:12px">No skills recorded yet</span>'}
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--danger);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">⚠ Skills to Develop (${lacking.length})</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${lacking.length ? lacking.map(s=>`<span style="background:var(--danger-light);color:var(--danger);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500">${s}</span>`).join('') : '<span style="color:var(--accent);font-size:12px">✓ All key skills covered</span>'}
+          </div>
+        </div>
+      </div>
+      ${suggestions.length ? `<div style="margin-top:12px;background:var(--bg);border-radius:7px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:600;color:var(--primary);margin-bottom:6px">💡 Development Suggestions</div>
+        ${suggestions.map(s=>`<div style="font-size:12px;margin-bottom:5px"><strong>${s.skill}:</strong> <span style="color:var(--text2)">${s.action}</span></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  c.innerHTML = `
+  <div class="page-header"><h2>Skills Analytics</h2><p>Cohort-wide skill distribution, individual profiles, and development recommendations</p></div>
+  <div class="section-card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px">Top Skills Across UFLDP Cohort</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${topSkills.map(([sk,cnt]) => `<div style="background:var(--primary-light);border:1px solid var(--primary-mid);border-radius:8px;padding:6px 12px;font-size:12px">
+        <strong style="color:var(--primary)">${sk}</strong> <span style="color:var(--text3);font-size:11px">· ${cnt} MTO${cnt>1?'s':''}</span>
+      </div>`).join('')}
+      ${!topSkills.length ? '<span style="color:var(--text3);font-size:12px">No skills data yet — MTOs need to submit Section 2.</span>' : ''}
+    </div>
+  </div>
+  <div style="font-size:13px;font-weight:600;margin-bottom:10px">Individual MTO Skill Profiles</div>
+  ${mtoCards || '<div class="section-card"><p style="color:var(--text3)">No MTO data available.</p></div>'}`;
+}
+
+// ─── MTO SELF SKILLS VIEW ─────────────────────────────────────────────────
+function renderMTOSkillsView() {
+  setActiveNav('mto-skills');
+  const c = document.getElementById('main-content');
+  const ALL_EXPECTED_SKILLS = [
+    'Data Analysis','Python / Coding','Power BI / Visualization',
+    'Google Apps Script','Production Planning','ERP Systems',
+    'Communication','Project Management','Lean / Six Sigma',
+    'Machine Learning','Financial Analysis','Operational Planning',
+    'Process Improvement','Team Collaboration','Creative Thinking',
+    'Systems Thinking','Sustainability Mindset','Customer Focus','Quality Management'
+  ];
+
+  // Build a fake mto object from current formData
+  const s2 = formData.s2 || {};
+  const s5 = formData.s5 || {};
+  const s6 = formData.s6 || {};
+  const s10 = formData.s10 || {};
+  const KPI_SKILL_MAP = {'Financial KPI':'Financial Analysis','Operational KPI':'Operational Planning','Process / Quality KPI':'Process Improvement','Team Support KPI':'Team Collaboration'};
+  const VALUE_SKILL_MAP = {'Innovation':'Creative Thinking','System_Driven':'Systems Thinking','Sustainability':'Sustainability Mindset','Customer_Centricity':'Customer Focus','Quality_Focus':'Quality Management'};
+
+  const skills = ['sk1name','sk2name','sk3name'].map(k => (s2[k]||'').trim()).filter(Boolean);
+  const kpiRatings = {};
+  (s5.kpi_rows||[]).forEach(row => { const sk=KPI_SKILL_MAP[row.cat]; if(sk&&row.rating) kpiRatings[sk]=parseFloat(row.rating); });
+  const valRatings = {};
+  Object.keys(VALUE_SKILL_MAP).forEach(val => { const k='val_r_'+val; const r=parseFloat(s6[k]||0); if(r>0) valRatings[VALUE_SKILL_MAP[val]]=r; });
+
+  const mto = { skills, kpiRatings, valRatings, score: parseFloat(s10.score_total||0), kpiAvg: parseFloat(s5.kpi_avg||0), valAvg: parseFloat(s6.val_avg||0) };
+  const { known, lacking, suggestions } = renderSkillsCard(mto, ALL_EXPECTED_SKILLS);
+  const scoreColor = mto.score >= 80 ? 'var(--accent)' : mto.score >= 60 ? 'var(--warn)' : mto.score > 0 ? 'var(--danger)' : 'var(--text3)';
+
+  c.innerHTML = `
+  <div class="page-header"><h2>My Skills Profile</h2><p>Based on your submitted report for ${reportMonth}</p></div>
+  <div class="section-card">
+    <div style="display:flex;gap:20px;margin-bottom:18px;flex-wrap:wrap">
+      <div style="text-align:center;min-width:80px"><div style="font-size:32px;font-weight:700;color:${scoreColor}">${mto.score||'—'}</div><div style="font-size:11px;color:var(--text3)">Total Score / 100</div></div>
+      <div style="text-align:center;min-width:80px"><div style="font-size:28px;font-weight:700;color:var(--primary)">${mto.kpiAvg||'—'}</div><div style="font-size:11px;color:var(--text3)">KPI Avg / 5</div></div>
+      <div style="text-align:center;min-width:80px"><div style="font-size:28px;font-weight:700;color:var(--warn)">${mto.valAvg||'—'}</div><div style="font-size:11px;color:var(--text3)">Values Avg / 5</div></div>
+    </div>
+    <div class="sub-heading">✓ Skills You Have (${known.length})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+      ${known.length ? known.map(s=>`<span style="background:var(--accent-light);color:var(--accent);padding:3px 10px;border-radius:10px;font-size:12px;font-weight:500">${s}</span>`).join('') : '<span style="color:var(--text3);font-size:12px">Fill your Section 2 skills to see this.</span>'}
+    </div>
+    <div class="sub-heading">⚠ Skills to Develop (${lacking.length})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+      ${lacking.length ? lacking.map(s=>`<span style="background:var(--danger-light);color:var(--danger);padding:3px 10px;border-radius:10px;font-size:12px;font-weight:500">${s}</span>`).join('') : '<span style="color:var(--accent);font-size:12px">✓ Great — all key skills are covered in your report!</span>'}
+    </div>
+    ${suggestions.length ? `<div class="sub-heading">💡 Personalised Development Suggestions</div>
+    <div style="background:var(--bg);border-radius:8px;padding:12px 14px">
+      ${suggestions.map(s=>`<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:3px">${s.skill}</div>
+        <div style="font-size:12px;color:var(--text2)">${s.action}</div>
+      </div>`).join('')}
+    </div>` : ''}
+    <div style="margin-top:12px;font-size:11px;color:var(--text3)">* Scores and skill gaps update as your Mentor and HR complete their sections.</div>
+  </div>`;
 }
 
 function showToast(msg){
