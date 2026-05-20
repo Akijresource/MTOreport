@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UFLDP MTO Report System</title>
-<link rel="icon" type="image/jpeg" href="https://raw.githubusercontent.com/Akijresource/MTOreport/main/UFLDP.jpg">  
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -302,21 +301,23 @@ async function verifyOTP() {
   const btn = document.querySelector('#otp-section .btn-success');
   const ogText = btn.innerHTML; btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
-  const timeoutId = setTimeout(() => {
-    btn.innerHTML = ogText; btn.disabled = false;
-    showError('Server took too long. Please try again.');
-  }, 30000);
-
   try {
+    // 30-second safety timeout — restores button if server never responds
+    const timeoutId = setTimeout(() => {
+      btn.innerHTML = ogText; btn.disabled = false;
+      showError('Server took too long. Please try again.');
+    }, 30000);
+
     const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
     });
     clearTimeout(timeoutId);
 
+    // Guard against non-JSON (Apps Script cold-start HTML redirect page)
     const text = await response.text();
     let res;
-    try { res = JSON.parse(text); } catch(e) {
-      showError('Server returned unexpected response. Please try again.');
+    try { res = JSON.parse(text); } catch(parseErr) {
+      showError('Server returned an unexpected response. Please try again.');
       btn.innerHTML = ogText; btn.disabled = false;
       return;
     }
@@ -329,17 +330,17 @@ async function verifyOTP() {
         localStorage.setItem('ufldp_role_v2_' + identifier, tempRole);
         localStorage.setItem('ufldp_actualEid_v2_' + identifier, activeLoginEid);
       }
-      formData = {};
+      formData = {}; 
       currentUser = { eid: activeLoginEid, role: tempRole, month: month };
       reportMonth = month; isAdmin = false;
       loadApp(tempRole);
     }
   } catch (err) {
-    clearTimeout(timeoutId);
     showError('Verification failed. Check your connection and try again.');
     btn.innerHTML = ogText; btn.disabled = false;
   }
 }
+
 function loginAdmin(){
   const u=document.getElementById('admin-user').value.trim();
   const p=document.getElementById('admin-pass').value.trim();
@@ -461,10 +462,13 @@ function isSectionDone(id) {
 }
 
 function gv(key, def='') {
+  // Check top-level formData first
   if (formData[key] !== undefined && formData[key] !== '') {
+    // Empty array means "no data saved yet" — return the default instead
     if (Array.isArray(formData[key]) && formData[key].length === 0) return def;
     return formData[key];
   }
+  // Search inside nested section objects (e.g. formData.s5.kpi_rows)
   for (let s in formData) {
     if (typeof formData[s] === 'object' && formData[s] !== null && !Array.isArray(formData[s])) {
       const val = formData[s][key];
