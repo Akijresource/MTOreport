@@ -266,7 +266,7 @@ async function initiateLogin() {
     return;
   }
 
-  // Always reset stale state from any previous session before starting a new login
+  // Reset any leftover OTP state from a previous session
   activeLoginEid = null;
   tempRole = '';
   document.getElementById('otp-section').classList.add('hidden');
@@ -290,7 +290,7 @@ async function initiateLogin() {
     });
     clearTimeout(timeoutId);
 
-    // Guard against non-JSON response (Apps Script cold-start HTML redirect)
+    // Guard against non-JSON (Apps Script cold-start HTML redirect)
     const text = await response.text();
     let res;
     try { res = JSON.parse(text); } catch(parseErr) {
@@ -323,32 +323,51 @@ async function verifyOTP() {
 
   if (!otp || otp.length !== 6) { showError('Please enter the 6-digit OTP.'); return; }
 
+  // Guard: if activeLoginEid is null, initiateLogin hasn't completed yet
+  // This happens when user types OTP too fast after logout+re-login
+  if (!activeLoginEid) {
+    showError('Session not ready. Please click Continue → first to request a new OTP.');
+    return;
+  }
+
+  // Safely get the button — it may be null if otp-section is hidden
   const btn = document.querySelector('#otp-section .btn-success');
-  const ogText = btn.innerHTML; btn.innerHTML = 'Verifying...'; btn.disabled = true;
+  if (!btn) {
+    showError('Please request a new OTP first by clicking Continue →');
+    return;
+  }
+
+  const ogText = btn.innerHTML;
+
+  // Helper to safely restore button in all error paths
+  function restoreBtn(msg) {
+    try { btn.innerHTML = ogText; btn.disabled = false; } catch(e) {}
+    if (msg) showError(msg);
+  }
+
+  btn.innerHTML = 'Verifying...'; btn.disabled = true;
+
+  // 30-second safety timeout — restores button if server never responds
+  const timeoutId = setTimeout(() => {
+    restoreBtn('Server took too long. Please try again.');
+  }, 30000);
 
   try {
-    // Safety timeout — restores button if server never responds
-    const timeoutId = setTimeout(() => {
-      btn.innerHTML = ogText; btn.disabled = false;
-      showError('Server took too long. Please try again.');
-    }, 30000);
-
     const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
     });
     clearTimeout(timeoutId);
 
-    // Guard against non-JSON response (Apps Script cold-start HTML redirect)
+    // Guard against non-JSON (Apps Script redirect/cold-start HTML page)
     const text = await response.text();
     let res;
     try { res = JSON.parse(text); } catch(parseErr) {
-      showError('Server returned an unexpected response. Please try again.');
-      btn.innerHTML = ogText; btn.disabled = false;
+      restoreBtn('Server returned an unexpected response. Please try again.');
       return;
     }
 
     if (res.error) {
-      showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
+      restoreBtn(res.error);
     } else {
       if (remember) {
         localStorage.setItem('ufldp_session_v2_' + identifier, 'active');
@@ -361,8 +380,8 @@ async function verifyOTP() {
       loadApp(tempRole);
     }
   } catch (err) {
-    showError('Verification failed. Check your connection and try again.');
-    btn.innerHTML = ogText; btn.disabled = false;
+    clearTimeout(timeoutId);
+    restoreBtn('Verification failed. Check your connection and try again.');
   }
 }
 
@@ -383,7 +402,7 @@ function logout(){
   tempRole=''; activeMTOEid=null; activeLoginEid=null;
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
-  // Fully wipe OTP state so a fresh login starts completely clean
+  // Fully reset OTP section so no stale state on next login
   document.getElementById('otp-section').classList.add('hidden');
   document.getElementById('login-otp').value = '';
   document.getElementById('login-identifier').value = '';
@@ -491,10 +510,13 @@ function isSectionDone(id) {
 }
 
 function gv(key, def='') {
+  // Check top-level formData first
   if (formData[key] !== undefined && formData[key] !== '') {
+    // Empty array means "no data saved yet" — return the default instead
     if (Array.isArray(formData[key]) && formData[key].length === 0) return def;
     return formData[key];
   }
+  // Search inside nested section objects (e.g. formData.s5.kpi_rows)
   for (let s in formData) {
     if (typeof formData[s] === 'object' && formData[s] !== null && !Array.isArray(formData[s])) {
       const val = formData[s][key];
