@@ -270,10 +270,26 @@ async function initiateLogin() {
   const ogText = btn.innerHTML;
   btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
 
+  // 30-second safety timeout
+  const timeoutId = setTimeout(() => {
+    btn.innerHTML = ogText; btn.disabled = false;
+    showError('Server took too long. Please try again.');
+  }, 30000);
+
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'request_otp', identifier: identifier })
-    }).then(r => r.json());
+    });
+    clearTimeout(timeoutId);
+
+    // Guard against non-JSON (Apps Script cold-start HTML redirect)
+    const text = await response.text();
+    let res;
+    try { res = JSON.parse(text); } catch(parseErr) {
+      showError('Server returned an unexpected response. Please try again.');
+      btn.innerHTML = ogText; btn.disabled = false;
+      return;
+    }
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -286,7 +302,8 @@ async function initiateLogin() {
       document.getElementById('auth-error').classList.add('hidden');
     }
   } catch (err) {
-    showError('Failed to send OTP.'); btn.innerHTML = ogText; btn.disabled = false;
+    clearTimeout(timeoutId);
+    showError('Failed to send OTP. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
