@@ -266,11 +266,17 @@ async function initiateLogin() {
     return;
   }
 
+  // Reset any leftover OTP state from a previous session
+  activeLoginEid = null;
+  tempRole = '';
+  document.getElementById('otp-section').classList.add('hidden');
+  document.getElementById('auth-error').classList.add('hidden');
+
   const btn = document.getElementById('btn-send-otp');
   const ogText = btn.innerHTML;
   btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
 
-  // 30-second safety timeout
+  // Safety timeout — restore button if server never responds
   const timeoutId = setTimeout(() => {
     btn.innerHTML = ogText; btn.disabled = false;
     showError('Server took too long. Please try again.');
@@ -371,15 +377,19 @@ function loginAdmin(){
 }
 
 function logout(){
-  currentUser=null;isAdmin=false;formData={};allReports=[];tempRole='';activeMTOEid=null;activeLoginEid=null;
+  currentUser=null; isAdmin=false; formData={}; allReports=[];
+  tempRole=''; activeMTOEid=null; activeLoginEid=null;
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
+  // Fully reset OTP section so no stale state on next login
   document.getElementById('otp-section').classList.add('hidden');
+  document.getElementById('login-otp').value = '';
+  document.getElementById('login-identifier').value = '';
+  document.getElementById('auth-error').classList.add('hidden');
   const btnSend = document.getElementById('btn-send-otp');
   btnSend.classList.remove('hidden');
   btnSend.innerHTML = 'Continue →';
   btnSend.disabled = false;
-  document.getElementById('login-otp').value = '';
 }
 
 function loadApp(mode){
