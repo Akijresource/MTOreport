@@ -232,6 +232,7 @@ let allReports = [];
 let tempRole = ''; 
 let activeLoginEid = null;
 let activeMTOEid = null;
+let isOtpRequestInFlight = false; // prevents verifyOTP racing with initiateLogin
 
 function getTargetEid() {
   return activeMTOEid || currentUser.eid; 
@@ -266,11 +267,12 @@ async function initiateLogin() {
     return;
   }
 
-  // Reset any leftover OTP state from a previous session
+  // Reset all stale state before starting a fresh OTP request
   activeLoginEid = null;
   tempRole = '';
+  isOtpRequestInFlight = true; // block verifyOTP until this request completes
   document.getElementById('otp-section').classList.add('hidden');
-  document.getElementById('login-otp').value = '';
+  document.getElementById('login-otp').value = ''; // clear any browser-autofilled OTP
   document.getElementById('auth-error').classList.add('hidden');
 
   const btn = document.getElementById('btn-send-otp');
@@ -280,6 +282,7 @@ async function initiateLogin() {
 
   // Safety timeout — restore button if server never responds
   const timeoutId = setTimeout(() => {
+    isOtpRequestInFlight = false;
     btn.innerHTML = ogText; btn.disabled = false;
     showError('Server took too long. Please try again.');
   }, 30000);
@@ -294,16 +297,19 @@ async function initiateLogin() {
     const text = await response.text();
     let res;
     try { res = JSON.parse(text); } catch(parseErr) {
+      isOtpRequestInFlight = false;
       showError('Server returned an unexpected response. Please try again.');
       btn.innerHTML = ogText; btn.disabled = false;
       return;
     }
 
     if (res.error) {
+      isOtpRequestInFlight = false;
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
     } else {
       tempRole = res.role; 
       activeLoginEid = res.actualEid;
+      isOtpRequestInFlight = false; // OTP request done — verifyOTP now allowed
       document.getElementById('otp-hint').textContent = `OTP sent to ${res.emailHint}`;
       document.getElementById('otp-section').classList.remove('hidden');
       btn.classList.add('hidden');
@@ -311,6 +317,7 @@ async function initiateLogin() {
     }
   } catch (err) {
     clearTimeout(timeoutId);
+    isOtpRequestInFlight = false;
     showError('Failed to send OTP. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
@@ -323,14 +330,19 @@ async function verifyOTP() {
 
   if (!otp || otp.length !== 6) { showError('Please enter the 6-digit OTP.'); return; }
 
-  // Guard: if activeLoginEid is null, initiateLogin hasn't completed yet
-  // This happens when user types OTP too fast after logout+re-login
-  if (!activeLoginEid) {
-    showError('Session not ready. Please click Continue → first to request a new OTP.');
+  // Block if OTP request is still in flight (race condition guard)
+  if (isOtpRequestInFlight) {
+    showError('Please wait — OTP is still being sent. Try again in a moment.');
     return;
   }
 
-  // Safely get the button — it may be null if otp-section is hidden
+  // Block if activeLoginEid not set yet (initiateLogin hasn't completed)
+  if (!activeLoginEid) {
+    showError('Please click Continue → first to request a new OTP.');
+    return;
+  }
+
+  // Safely get button — null if otp-section is hidden
   const btn = document.querySelector('#otp-section .btn-success');
   if (!btn) {
     showError('Please request a new OTP first by clicking Continue →');
@@ -339,7 +351,7 @@ async function verifyOTP() {
 
   const ogText = btn.innerHTML;
 
-  // Helper to safely restore button in all error paths
+  // Central restore helper — safe even if btn becomes detached
   function restoreBtn(msg) {
     try { btn.innerHTML = ogText; btn.disabled = false; } catch(e) {}
     if (msg) showError(msg);
@@ -347,7 +359,7 @@ async function verifyOTP() {
 
   btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
-  // 30-second safety timeout — restores button if server never responds
+  // 30-second safety timeout
   const timeoutId = setTimeout(() => {
     restoreBtn('Server took too long. Please try again.');
   }, 30000);
@@ -358,7 +370,7 @@ async function verifyOTP() {
     });
     clearTimeout(timeoutId);
 
-    // Guard against non-JSON (Apps Script redirect/cold-start HTML page)
+    // Guard against non-JSON (Apps Script cold-start redirect)
     const text = await response.text();
     let res;
     try { res = JSON.parse(text); } catch(parseErr) {
@@ -400,6 +412,7 @@ function loginAdmin(){
 function logout(){
   currentUser=null; isAdmin=false; formData={}; allReports=[];
   tempRole=''; activeMTOEid=null; activeLoginEid=null;
+  isOtpRequestInFlight = false;
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   // Fully reset OTP section so no stale state on next login
