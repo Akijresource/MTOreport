@@ -302,10 +302,24 @@ async function verifyOTP() {
   const btn = document.querySelector('#otp-section .btn-success');
   const ogText = btn.innerHTML; btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
+  const timeoutId = setTimeout(() => {
+    btn.innerHTML = ogText; btn.disabled = false;
+    showError('Server took too long. Please try again.');
+  }, 30000);
+
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
-    }).then(r => r.json());
+    });
+    clearTimeout(timeoutId);
+
+    const text = await response.text();
+    let res;
+    try { res = JSON.parse(text); } catch(e) {
+      showError('Server returned unexpected response. Please try again.');
+      btn.innerHTML = ogText; btn.disabled = false;
+      return;
+    }
 
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
@@ -315,16 +329,17 @@ async function verifyOTP() {
         localStorage.setItem('ufldp_role_v2_' + identifier, tempRole);
         localStorage.setItem('ufldp_actualEid_v2_' + identifier, activeLoginEid);
       }
-      formData = {}; 
+      formData = {};
       currentUser = { eid: activeLoginEid, role: tempRole, month: month };
       reportMonth = month; isAdmin = false;
       loadApp(tempRole);
     }
   } catch (err) {
-    showError('Verification failed.'); btn.innerHTML = ogText; btn.disabled = false;
+    clearTimeout(timeoutId);
+    showError('Verification failed. Check your connection and try again.');
+    btn.innerHTML = ogText; btn.disabled = false;
   }
 }
-
 function loginAdmin(){
   const u=document.getElementById('admin-user').value.trim();
   const p=document.getElementById('admin-pass').value.trim();
@@ -446,10 +461,17 @@ function isSectionDone(id) {
 }
 
 function gv(key, def='') {
-  if (formData[key] !== undefined && formData[key] !== '') return formData[key];
+  if (formData[key] !== undefined && formData[key] !== '') {
+    if (Array.isArray(formData[key]) && formData[key].length === 0) return def;
+    return formData[key];
+  }
   for (let s in formData) {
-    if (typeof formData[s] === 'object' && formData[s] !== null) {
-      if (formData[s][key] !== undefined && formData[s][key] !== '') return formData[s][key];
+    if (typeof formData[s] === 'object' && formData[s] !== null && !Array.isArray(formData[s])) {
+      const val = formData[s][key];
+      if (val !== undefined && val !== '') {
+        if (Array.isArray(val) && val.length === 0) return def;
+        return val;
+      }
     }
   }
   return def;
