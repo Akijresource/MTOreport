@@ -6,6 +6,7 @@
 <title>UFLDP MTO Report System</title>
 <link rel="icon" type="image/jpeg" href="https://raw.githubusercontent.com/Akijresource/MTOreport/main/UFLDP.jpg">  
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -171,10 +172,18 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
     </div>
     <div id="auth-error" class="error-msg hidden"></div>
     <div id="mto-login">
-      <div class="form-group"><label>Email or Employee ID</label><input id="login-identifier" type="text" placeholder="e.g. 568858 or email@akijresource.com"/></div>
-      <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
-
-      <button type="button" id="btn-send-otp" class="btn btn-primary" style="width:100%" onclick="initiateLogin()">Login →</button>
+      <div id="google-step">
+        <button type="button" id="btn-google" class="btn btn-primary" style="width:100%" onclick="loginWithGoogle()">
+          Continue with Google →
+        </button>
+        <p class="auth-hint">Sign in with your Akij Resource Gmail account.</p>
+      </div>
+      <div id="enroll-step" class="hidden">
+        <div class="info-box" id="google-signed-in-as"></div>
+        <div class="form-group"><label>Enroll ID</label><input id="login-identifier" type="text" placeholder="e.g. 568858"/></div>
+        <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
+        <button type="button" id="btn-send-otp" class="btn btn-primary" style="width:100%" onclick="completeLogin()">Login →</button>
+      </div>
     </div>
     <div id="admin-login" class="hidden">
       <div class="form-group"><label>Admin Username</label><input id="admin-user" type="text" placeholder="Admin name"/></div>
@@ -211,8 +220,15 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 
 <script>
 // IMPORTANT: Make sure this points to the newest deployment URL after you updated Code.gs
+// Only used now for final-submit PDF generation (Google Drive) — draft save/load runs on Supabase.
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxlPi7lT-fH9SD3lLK95m26zd8CakXjd54WuU9oEmoJAEOx_d1BA0EeZypF13YmbdTd/exec';
 
+const SUPABASE_URL = 'https://zndokksvaypymcyomrqs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuZG9ra3N2YXlweW1jeW9tcnFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MTU2MjEsImV4cCI6MjEwMjE5MTYyMX0.tNpWQGVGg6QrJWIWka-YupVlEtlhvUjzVcbzVJu1Voo';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const PEOPLEDESK_PROXY_URL = SUPABASE_URL + '/functions/v1/peopledesk-proxy';
+
+let googleEmail = '';
 let currentUser = null;
 let isAdmin = false;
 let reportMonth = '';
@@ -240,61 +256,63 @@ function showError(msg){
   el.textContent=msg;el.classList.remove('hidden');
 }
 
-async function initiateLogin() {
-  const identifier = document.getElementById('login-identifier').value.trim();
-  const month = document.getElementById('login-month').value;
-  if (!identifier || !month) { showError('Please enter your Email or Enroll ID and Report Month.'); return; }
+async function loginWithGoogle() {
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  });
+}
 
-  if (localStorage.getItem('ufldp_session_v2_' + identifier) === 'active') {
-    const savedRole = localStorage.getItem('ufldp_role_v2_' + identifier) || 'mto';
-    const savedActualEid = localStorage.getItem('ufldp_actualEid_v2_' + identifier) || identifier;
-    formData = {};
-    currentUser = { eid: savedActualEid, role: savedRole, month: month };
-    reportMonth = month; isAdmin = false;
-    loadApp(savedRole);
-    return;
+async function initAuthUI() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user && session.user.email) {
+    googleEmail = session.user.email;
+    document.getElementById('google-step').classList.add('hidden');
+    document.getElementById('enroll-step').classList.remove('hidden');
+    document.getElementById('google-signed-in-as').textContent = `Signed in as ${googleEmail}`;
   }
+}
+
+async function completeLogin() {
+  const enroll = document.getElementById('login-identifier').value.trim();
+  const month = document.getElementById('login-month').value;
+  if (!enroll || !month) { showError('Please enter your Enroll ID and Report Month.'); return; }
 
   document.getElementById('auth-error').classList.add('hidden');
-
   const btn = document.getElementById('btn-send-otp');
   const ogText = btn.innerHTML;
-  btn.innerHTML = 'Logging in...'; btn.disabled = true;
-
-  const timeoutId = setTimeout(() => {
-    btn.innerHTML = ogText; btn.disabled = false;
-    showError('Server took too long. Please try again.');
-  }, 30000);
+  btn.innerHTML = 'Looking up your profile...'; btn.disabled = true;
 
   try {
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: 'request_otp', eid: identifier })
+    const response = await fetch(`${PEOPLEDESK_PROXY_URL}?employeeId=${encodeURIComponent(enroll)}`, {
+      headers: { Authorization: 'Bearer ' + SUPABASE_ANON_KEY, apikey: SUPABASE_ANON_KEY }
     });
-    clearTimeout(timeoutId);
+    const info = await response.json();
 
-    const text = await response.text();
-    let res;
-    try { res = JSON.parse(text); } catch(parseErr) {
-      showError('Server returned an unexpected response. Please try again.');
-      btn.innerHTML = ogText; btn.disabled = false;
-      return;
+    if (!info || !info.employeeEnroll) {
+      showError('Enroll ID not found.'); btn.innerHTML = ogText; btn.disabled = false; return;
+    }
+    if ((info.employeeEmail || '').trim().toLowerCase() !== googleEmail.toLowerCase()) {
+      showError(`This Enroll ID is registered to a different email than ${googleEmail}.`);
+      btn.innerHTML = ogText; btn.disabled = false; return;
     }
 
-    if (res.error) {
-      showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
-    } else {
-      localStorage.setItem('ufldp_session_v2_' + identifier, 'active');
-      localStorage.setItem('ufldp_role_v2_' + identifier, res.role);
-      localStorage.setItem('ufldp_actualEid_v2_' + identifier, res.actualEid);
-      formData = {};
-      currentUser = { eid: res.actualEid, role: res.role, month: month };
-      reportMonth = month; isAdmin = false;
-      btn.innerHTML = ogText; btn.disabled = false;
-      loadApp(res.role);
+    const designation = (info.designation || '').trim().toLowerCase();
+    const isMTO = designation === 'management trainee';
+    const team = (info.subordinates || []).filter(s => (s.designation || '').trim().toLowerCase() === 'management trainee');
+
+    if (!isMTO && team.length === 0) {
+      showError('Your designation does not have access to this portal.');
+      btn.innerHTML = ogText; btn.disabled = false; return;
     }
+
+    formData = {};
+    currentUser = { eid: String(info.employeeEnroll), name: info.employeeName, role: isMTO ? 'mto' : 'mentor', email: googleEmail, team: team };
+    reportMonth = month; isAdmin = false;
+    btn.innerHTML = ogText; btn.disabled = false;
+    loadApp(currentUser.role);
   } catch (err) {
-    clearTimeout(timeoutId);
-    showError('Login failed. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
+    showError('Lookup failed. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
@@ -311,10 +329,13 @@ function loginAdmin(){
 }
 
 function logout(){
-  currentUser=null; isAdmin=false; formData={}; allReports=[];
+  sb.auth.signOut();
+  currentUser=null; isAdmin=false; formData={}; allReports=[]; googleEmail='';
   tempRole=''; activeMTOEid=null; activeLoginEid=null; currentProfilePic='';
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('enroll-step').classList.add('hidden');
+  document.getElementById('google-step').classList.remove('hidden');
   document.getElementById('login-identifier').value = '';
   document.getElementById('auth-error').classList.add('hidden');
   const btnSend = document.getElementById('btn-send-otp');
@@ -362,26 +383,28 @@ function renderLMDashboard() {
   const c = document.getElementById('main-content');
   c.innerHTML = `<div class="page-header"><h2>My Team</h2><p>Select an MTO to review or edit their report for ${reportMonth}</p></div>
                  <div id="team-list" class="section-card">Loading team data...</div>`;
-                 
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'get_team', mentorEid: currentUser.eid, month: reportMonth })
-  }).then(r => r.json()).then(d => {
-     const team = d.team || [];
-     if(team.length === 0) {
-       document.getElementById('team-list').innerHTML = `<p style="color:var(--text3);font-size:13px">No MTOs found for this month.</p>`;
-       return;
-     }
-     let html = `<div class="table-responsive"><table class="data-table"><tr><th>MTO Name</th><th>Enroll ID</th><th>Status</th><th>Action</th></tr>`;
-     team.forEach(t => {
-       html += `<tr>
-         <td>${t.name}</td><td><code style="font-size:11px">${t.eid}</code></td>
-         <td><span class="badge-status badge-${t.status.toLowerCase()}">${t.status}</span></td>
-         <td><button type="button" class="btn btn-primary btn-sm" onclick="openMTOReport('${t.eid}')">Review & Assess</button></td>
-       </tr>`;
-     });
-     html += `</table></div>`;
-     document.getElementById('team-list').innerHTML = html;
+
+  const team = currentUser.team || [];
+  if (team.length === 0) {
+    document.getElementById('team-list').innerHTML = `<p style="color:var(--text3);font-size:13px">No Management Trainees found under you.</p>`;
+    return;
+  }
+
+  const eids = team.map(t => String(t.employeeId));
+  sb.from('mto_reports').select('eid,status').eq('month', reportMonth).in('eid', eids).then(({ data }) => {
+    const statusMap = {};
+    (data || []).forEach(r => statusMap[r.eid] = r.status);
+    let html = `<div class="table-responsive"><table class="data-table"><tr><th>MTO Name</th><th>Enroll ID</th><th>Status</th><th>Action</th></tr>`;
+    team.forEach(t => {
+      const status = statusMap[String(t.employeeId)] || 'draft';
+      html += `<tr>
+        <td>${t.employeeName}</td><td><code style="font-size:11px">${t.employeeId}</code></td>
+        <td><span class="badge-status badge-${status.toLowerCase()}">${status}</span></td>
+        <td><button type="button" class="btn btn-primary btn-sm" onclick="openMTOReport('${t.employeeId}')">Review & Assess</button></td>
+      </tr>`;
+    });
+    html += `</table></div>`;
+    document.getElementById('team-list').innerHTML = html;
   });
 }
 
@@ -396,10 +419,10 @@ async function openMTOReport(mtoEid) {
 
 async function loadSavedData(targetEid){
   try{
-    const r=await fetch(`${SCRIPT_URL}?action=get&eid=${targetEid}&month=${reportMonth}`);
-    const d=await r.json();
-    if(d.data) formData=d.data;
-    currentProfilePic = d.profile_pic || ''; // Set persistent photo
+    const { data } = await sb.from('mto_reports').select('data,pdf_url').eq('eid', String(targetEid)).eq('month', reportMonth).maybeSingle();
+    if(data && data.data) formData = data.data;
+    if(data && data.pdf_url) formData['pdf_url'] = data.pdf_url;
+    currentProfilePic = formData.profile_pic || '';
   }catch(e){}
 }
 
@@ -593,22 +616,22 @@ async function saveSection(sectionId){
 
   const statusEl = document.getElementById('save-status-'+sectionId);
   if(statusEl){statusEl.textContent='✓ Saved locally';statusEl.style.display='flex';}
-  
+
   try{
-    await fetch(SCRIPT_URL,{
-        method:'POST',
-        body:JSON.stringify({
-            action:'save',
-            eid:getTargetEid(),
-            month:reportMonth,
-            section:sectionId,
-            data:formData[sectionId]
-        })
+    const eid = String(getTargetEid());
+    const { error } = await sb.from('mto_reports').upsert({
+      id: `${eid}_${reportMonth}`,
+      eid: eid,
+      month: reportMonth,
+      status: 'draft',
+      data: formData,
+      updated_at: new Date().toISOString()
     });
-    if(statusEl)statusEl.textContent='✓ Saved to sheet';
+    if (error) throw error;
+    if(statusEl)statusEl.textContent='✓ Saved to database';
     showToast('Section saved!');
   }catch(e){
-    if(statusEl)statusEl.textContent='⚠ Sheet sync failed (saved locally)';
+    if(statusEl)statusEl.textContent='⚠ Sync failed (saved locally)';
   }
 }
 
@@ -667,16 +690,19 @@ function uploadProfilePic(input) {
       document.getElementById('pic-btn-label').textContent = 'Change Picture';
       currentProfilePic = dataUrl;
       
-      // Seamlessly save to background profile sheet 
+      // Save alongside the rest of the report data
       try {
-        await fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'save_profile_pic',
-            eid: getTargetEid(),
-            photoData: dataUrl
-          })
+        formData.profile_pic = dataUrl;
+        const eid = String(getTargetEid());
+        const { error } = await sb.from('mto_reports').upsert({
+          id: `${eid}_${reportMonth}`,
+          eid: eid,
+          month: reportMonth,
+          status: 'draft',
+          data: formData,
+          updated_at: new Date().toISOString()
         });
+        if (error) throw error;
         statusEl.textContent = 'Saved!';
         statusEl.style.color = 'var(--accent)';
         setTimeout(() => statusEl.textContent = '', 3000);
@@ -1224,8 +1250,17 @@ async function saveDraft(){
       sign_hr_date: document.getElementById('sign-hr-date')?.value || gv('sign_hr_date'),
       sign_hr_sig: document.getElementById('sign-hr-sig')?.value || gv('sign_hr_sig')
     };
-    await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({action:'save_full',eid:getTargetEid(),month:reportMonth,status:'draft',data:formData})});
-    showToast('Draft saved to sheet!');
+    const eid = String(getTargetEid());
+    const { error } = await sb.from('mto_reports').upsert({
+      id: `${eid}_${reportMonth}`,
+      eid: eid,
+      month: reportMonth,
+      status: 'draft',
+      data: formData,
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    showToast('Draft saved!');
   }catch(e){showToast('Saved locally only');}
 }
 
@@ -1255,6 +1290,17 @@ async function submitFinalReport(){
     const pdfUrl = res.pdf_url || '';
     // Store in formData so it persists
     if(pdfUrl) formData['pdf_url'] = pdfUrl;
+
+    const eid = String(getTargetEid());
+    await sb.from('mto_reports').upsert({
+      id: `${eid}_${reportMonth}`,
+      eid: eid,
+      month: reportMonth,
+      status: 'submitted',
+      data: formData,
+      pdf_url: pdfUrl,
+      updated_at: new Date().toISOString()
+    });
 
     // Update the action area
     const actionArea = document.getElementById('pdf-action-area');
@@ -1676,8 +1722,9 @@ function showToast(msg){
 }
 
 const today = new Date();
-today.setMonth(today.getMonth() - 1); 
+today.setMonth(today.getMonth() - 1);
 document.getElementById('login-month').value = today.toISOString().slice(0,7);
+initAuthUI();
 </script>
 </body>
 </html>
