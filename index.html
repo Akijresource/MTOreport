@@ -307,7 +307,10 @@ async function completeLogin() {
     }
 
     formData = {};
-    currentUser = { eid: String(info.employeeEnroll), name: info.employeeName, role: isMTO ? 'mto' : 'mentor', email: googleEmail, team: team };
+    currentUser = {
+      eid: String(info.employeeEnroll), name: (info.employeeName || '').trim(), role: isMTO ? 'mto' : 'mentor',
+      email: googleEmail, team: team, dept: info.department || '', sup: info.reportingManager || ''
+    };
     reportMonth = month; isAdmin = false;
     btn.innerHTML = ogText; btn.disabled = false;
     loadApp(currentUser.role);
@@ -374,6 +377,10 @@ function loadApp(mode){
     document.getElementById('topbar-subtitle').textContent='My Monthly Report';
     document.getElementById('report-month-tag').textContent=reportMonth;
     loadSavedData(currentUser.eid).then(()=>{
+      formData.s1 = formData.s1 || {};
+      if(!formData.s1.name) formData.s1.name = currentUser.name || '';
+      if(!formData.s1.dept) formData.s1.dept = currentUser.dept || '';
+      if(!formData.s1.sup) formData.s1.sup = currentUser.sup || '';
       buildMTOSidebar(); showSection('s1');
     });
   }
