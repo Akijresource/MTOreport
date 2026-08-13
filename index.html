@@ -306,10 +306,22 @@ async function completeLogin() {
       btn.innerHTML = ogText; btn.disabled = false; return;
     }
 
+    let supervisorName = info.reportingManager || '';
+    const supervisorId = info.employeeProfile && info.employeeProfile.supervisorId;
+    if (supervisorId) {
+      try {
+        const supRes = await fetch(`${PEOPLEDESK_PROXY_URL}?employeeId=${encodeURIComponent(supervisorId)}`, {
+          headers: { Authorization: 'Bearer ' + SUPABASE_ANON_KEY, apikey: SUPABASE_ANON_KEY }
+        });
+        const supInfo = await supRes.json();
+        if (supInfo && supInfo.employeeName) supervisorName = supInfo.employeeName.trim();
+      } catch (e) {}
+    }
+
     formData = {};
     currentUser = {
       eid: String(info.employeeEnroll), name: (info.employeeName || '').trim(), role: isMTO ? 'mto' : 'mentor',
-      email: googleEmail, team: team, dept: info.department || '', sup: info.reportingManager || ''
+      email: googleEmail, team: team, dept: info.department || '', sup: supervisorName
     };
     reportMonth = month; isAdmin = false;
     btn.innerHTML = ogText; btn.disabled = false;
