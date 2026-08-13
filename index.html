@@ -173,20 +173,8 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
     <div id="mto-login">
       <div class="form-group"><label>Email or Employee ID</label><input id="login-identifier" type="text" placeholder="e.g. 568858 or email@akijresource.com"/></div>
       <div class="form-group"><label>Reporting Month</label><input id="login-month" type="month"/></div>
-      
-      <div id="otp-section" class="hidden" style="background:var(--primary-light); padding:16px; border-radius:8px; border:1px solid var(--primary-mid); margin-bottom:14px;">
-        <div id="otp-hint" style="font-size:12px; color:var(--primary); margin-bottom:10px; font-weight:500;"></div>
-        <div class="form-group"><label>Enter 6-Digit OTP</label>
-          <input id="login-otp" type="text" placeholder="••••••" maxlength="6" style="letter-spacing:8px; text-align:center; font-size:18px; font-weight:bold;"/>
-        </div>
-        <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
-          <input type="checkbox" id="remember-me" style="width:auto; accent-color:var(--primary);"/>
-          <label for="remember-me" style="margin:0; font-size:12px;">Save browser (Skip OTP next time)</label>
-        </div>
-        <button type="button" class="btn btn-success" style="width:100%" onclick="verifyOTP()">Verify & Login →</button>
-      </div>
 
-      <button type="button" id="btn-send-otp" class="btn btn-primary" style="width:100%" onclick="initiateLogin()">Continue →</button>
+      <button type="button" id="btn-send-otp" class="btn btn-primary" style="width:100%" onclick="initiateLogin()">Login →</button>
     </div>
     <div id="admin-login" class="hidden">
       <div class="form-group"><label>Admin Username</label><input id="admin-user" type="text" placeholder="Admin name"/></div>
@@ -223,7 +211,7 @@ label{font-size:12px;font-weight:500;color:var(--text2);display:block;margin-bot
 
 <script>
 // IMPORTANT: Make sure this points to the newest deployment URL after you updated Code.gs
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvbas86kEvXTeuwIwU7oUa2xboxNdoPKaIH5f5yZht14w6F754g_9BIZ5GbEGKJA6b/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxlPi7lT-fH9SD3lLK95m26zd8CakXjd54WuU9oEmoJAEOx_d1BA0EeZypF13YmbdTd/exec';
 
 let currentUser = null;
 let isAdmin = false;
@@ -252,14 +240,6 @@ function showError(msg){
   el.textContent=msg;el.classList.remove('hidden');
 }
 
-function resetOtpVerifyButton() {
-  const verifyBtn = document.querySelector('#otp-section .btn-success');
-  if (verifyBtn) {
-    verifyBtn.innerHTML = 'Verify & Login →';
-    verifyBtn.disabled = false;
-  }
-}
-
 async function initiateLogin() {
   const identifier = document.getElementById('login-identifier').value.trim();
   const month = document.getElementById('login-month').value;
@@ -268,24 +248,18 @@ async function initiateLogin() {
   if (localStorage.getItem('ufldp_session_v2_' + identifier) === 'active') {
     const savedRole = localStorage.getItem('ufldp_role_v2_' + identifier) || 'mto';
     const savedActualEid = localStorage.getItem('ufldp_actualEid_v2_' + identifier) || identifier;
-    formData = {}; 
+    formData = {};
     currentUser = { eid: savedActualEid, role: savedRole, month: month };
     reportMonth = month; isAdmin = false;
     loadApp(savedRole);
     return;
   }
 
-  activeLoginEid = null;
-  tempRole = '';
-  document.getElementById('otp-section').classList.add('hidden');
-  document.getElementById('login-otp').value = '';
-  resetOtpVerifyButton();
   document.getElementById('auth-error').classList.add('hidden');
 
   const btn = document.getElementById('btn-send-otp');
   const ogText = btn.innerHTML;
-  btn.classList.remove('hidden');
-  btn.innerHTML = 'Sending OTP...'; btn.disabled = true;
+  btn.innerHTML = 'Logging in...'; btn.disabled = true;
 
   const timeoutId = setTimeout(() => {
     btn.innerHTML = ogText; btn.disabled = false;
@@ -294,7 +268,7 @@ async function initiateLogin() {
 
   try {
     const response = await fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: 'request_otp', identifier: identifier })
+      method: 'POST', body: JSON.stringify({ action: 'request_otp', eid: identifier })
     });
     clearTimeout(timeoutId);
 
@@ -309,89 +283,25 @@ async function initiateLogin() {
     if (res.error) {
       showError(res.error); btn.innerHTML = ogText; btn.disabled = false;
     } else {
-      tempRole = res.role; 
-      activeLoginEid = res.actualEid;
-      document.getElementById('otp-hint').textContent = `OTP sent to ${res.emailHint}`;
-      resetOtpVerifyButton();
-      document.getElementById('otp-section').classList.remove('hidden');
-      btn.classList.add('hidden');
-      document.getElementById('auth-error').classList.add('hidden');
-    }
-  } catch (err) {
-    clearTimeout(timeoutId);
-    showError('Failed to send OTP. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
-  }
-}
-
-async function verifyOTP() {
-  const identifier = document.getElementById('login-identifier').value.trim();
-  const month = document.getElementById('login-month').value;
-  const otp = document.getElementById('login-otp').value.trim();
-  const remember = document.getElementById('remember-me').checked;
-
-  if (!otp || otp.length !== 6) { showError('Please enter the 6-digit OTP.'); return; }
-
-  if (!activeLoginEid) {
-    showError('Session not ready. Please click Continue → first to request a new OTP.');
-    return;
-  }
-
-  const btn = document.querySelector('#otp-section .btn-success');
-  if (!btn) {
-    showError('Please request a new OTP first by clicking Continue →');
-    return;
-  }
-
-  const ogText = 'Verify & Login →';
-
-  function restoreBtn(msg) {
-    try { btn.innerHTML = ogText; btn.disabled = false; } catch(e) {}
-    if (msg) showError(msg);
-  }
-
-  btn.innerHTML = 'Verifying...'; btn.disabled = true;
-
-  const timeoutId = setTimeout(() => {
-    restoreBtn('Server took too long. Please try again.');
-  }, 30000);
-
-  try {
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: 'verify_otp', eid: activeLoginEid, otp: otp })
-    });
-    clearTimeout(timeoutId);
-
-    const text = await response.text();
-    let res;
-    try { res = JSON.parse(text); } catch(parseErr) {
-      restoreBtn('Server returned an unexpected response. Please try again.');
-      return;
-    }
-
-    if (res.error) {
-      restoreBtn(res.error);
-    } else {
-      if (remember) {
-        localStorage.setItem('ufldp_session_v2_' + identifier, 'active');
-        localStorage.setItem('ufldp_role_v2_' + identifier, tempRole);
-        localStorage.setItem('ufldp_actualEid_v2_' + identifier, activeLoginEid);
-      }
-      formData = {}; 
-      currentUser = { eid: activeLoginEid, role: tempRole, month: month };
+      localStorage.setItem('ufldp_session_v2_' + identifier, 'active');
+      localStorage.setItem('ufldp_role_v2_' + identifier, res.role);
+      localStorage.setItem('ufldp_actualEid_v2_' + identifier, res.actualEid);
+      formData = {};
+      currentUser = { eid: res.actualEid, role: res.role, month: month };
       reportMonth = month; isAdmin = false;
-      resetOtpVerifyButton();
-      loadApp(tempRole);
+      btn.innerHTML = ogText; btn.disabled = false;
+      loadApp(res.role);
     }
   } catch (err) {
     clearTimeout(timeoutId);
-    restoreBtn('Verification failed. Check your connection and try again.');
+    showError('Login failed. Check your connection.'); btn.innerHTML = ogText; btn.disabled = false;
   }
 }
 
 function loginAdmin(){
   const u=document.getElementById('admin-user').value.trim();
   const p=document.getElementById('admin-pass').value.trim();
-  if(u==='HrARL'&&p==='HrAkij123@@'){
+  if(u==='HrARL'&&p==='HrARL@12345'){
     currentUser={eid:'ADMIN', name:'HR Admin', role:'admin'};
     isAdmin=true;
     loadApp('admin');
@@ -405,14 +315,10 @@ function logout(){
   tempRole=''; activeMTOEid=null; activeLoginEid=null; currentProfilePic='';
   document.getElementById('app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
-  document.getElementById('otp-section').classList.add('hidden');
-  document.getElementById('login-otp').value = '';
-  resetOtpVerifyButton();
   document.getElementById('login-identifier').value = '';
   document.getElementById('auth-error').classList.add('hidden');
   const btnSend = document.getElementById('btn-send-otp');
-  btnSend.classList.remove('hidden');
-  btnSend.innerHTML = 'Continue →';
+  btnSend.innerHTML = 'Login →';
   btnSend.disabled = false;
 }
 
